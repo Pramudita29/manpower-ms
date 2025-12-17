@@ -11,11 +11,6 @@ router.post('/register', register);
 router.post('/login', login);
 
 // Protected routes for internal actions
-router.post(
-    '/register/employee', 
-    protect, 
-    authorizeRoles('admin', 'super_admin'), // Only Admins can use this route
-    registerEmployee
-);
+router.post('/add-employee', protect, authorizeRoles('admin'), registerEmployee);
 
 module.exports = router;
