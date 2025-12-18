@@ -17,9 +17,10 @@ import { usePathname } from 'next/navigation';
 export function Sidebar({ role, onLogout }) {
     const pathname = usePathname();
 
-    // Standardized links based on your tenant-admin folder structure
+    // Standardized links - Using plural 'employers' to match common API patterns
+    // If your folder is singular, change 'employers' to 'employer' below.
     const adminLinks = [
-        { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
@@ -29,8 +30,8 @@ export function Sidebar({ role, onLogout }) {
     ];
 
     const employeeLinks = [
-        { path: '/dashboard/employee', label: 'Dashboard', icon: LayoutDashboard },
-        { path: '/dashboard/employee/employers', label: 'Employers', icon: Building2 },
+        { path: '/dashboard/employee', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+        { path: '/dashboard/employee/employer', label: 'Employers', icon: Building2 },
         { path: '/dashboard/employee/job-demands', label: 'Job Demands', icon: Briefcase },
         { path: '/dashboard/employee/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
@@ -41,43 +42,63 @@ export function Sidebar({ role, onLogout }) {
     const links = role === 'admin' ? adminLinks : employeeLinks;
 
     return (
-        <div className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col sticky top-0">
-            <div className="p-6 border-b border-gray-200">
-                <h1 className="text-2xl font-bold text-gray-900">ManpowerMS</h1>
-                <p className="text-sm text-gray-500 mt-1 capitalize">{role} Portal</p>
+        <div className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col sticky top-0 z-40">
+            {/* Header / Branding */}
+            <div className="p-6 border-b border-gray-200 bg-white">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                        M
+                    </div>
+                    <h1 className="text-xl font-bold text-gray-900 tracking-tight">ManpowerMS</h1>
+                </div>
+                <div className="mt-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 capitalize">
+                    {role} Portal
+                </div>
             </div>
 
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {/* Navigation Links */}
+            <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
                 {links.map((link) => {
                     const Icon = link.icon;
-                    // Logic to highlight the active link
-                    const isActive = pathname === link.path || pathname.startsWith(`${link.path}/`);
+                    
+                    // Logic: If it's the dashboard root, match exactly. 
+                    // Otherwise, match if the current path starts with the link path.
+                    const isActive = link.exact 
+                        ? pathname === link.path 
+                        : pathname.startsWith(link.path);
 
                     return (
                         <Link
                             key={link.path}
                             href={link.path}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                            className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                isActive
                                     ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
-                                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                                }`}
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
                         >
-                            <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
-                            <span>{link.label}</span>
+                            <Icon 
+                                size={20} 
+                                className={`transition-colors ${
+                                    isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                                }`} 
+                            />
+                            <span className="flex-1">{link.label}</span>
                             {isActive && (
-                                <div className="ml-auto w-1 h-5 bg-blue-600 rounded-full" />
+                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
                             )}
                         </Link>
                     );
                 })}
             </nav>
 
-            <div className="p-4 border-t border-gray-200">
+            {/* Footer / Logout */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50/50">
                 <button
                     onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-200"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 group"
                 >
-                    <LogOut size={20} />
+                    <LogOut size={20} className="text-red-400 group-hover:text-red-600 transition-colors" />
                     <span>Logout</span>
                 </button>
             </div>
