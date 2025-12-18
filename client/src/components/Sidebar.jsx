@@ -16,23 +16,25 @@ export function Sidebar({
     onNavigate,
     onLogout
 }) {
+    // Admin paths updated to match your folder structure
     const adminLinks = [
-        { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { path: '/admin/employers', label: 'Employers', icon: Building2 },
-        { path: '/admin/employees', label: 'Employees', icon: Users },
-        { path: '/admin/workers', label: 'Workers', icon: UserCircle },
-        { path: '/admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
-        { path: '/admin/reports', label: 'Reports', icon: FileText },
+        { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
+        { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
+        { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
+        { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
+    // Employee paths updated to match your folder structure
     const employeeLinks = [
-        { path: '/employee/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { path: '/employee/employers', label: 'Employers', icon: Building2 },
-        { path: '/employee/job-demands', label: 'Job Demands', icon: Briefcase },
-        { path: '/employee/workers', label: 'Workers', icon: UserCircle },
-        { path: '/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
-        { path: '/employee/reports', label: 'Reports', icon: FileText },
+        { path: '/dashboard/employee', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/dashboard/employee/employers', label: 'Employers', icon: Building2 },
+        { path: '/dashboard/employee/job-demands', label: 'Job Demands', icon: Briefcase },
+        { path: '/dashboard/employee/workers', label: 'Workers', icon: UserCircle },
+        { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/employee/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
@@ -50,15 +52,15 @@ export function Sidebar({
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {links.map((link) => {
                     const Icon = link.icon;
-                    const isActive = currentPath.startsWith(link.path); // Supports sub-routes
+                    const isActive = currentPath.startsWith(link.path);
 
                     return (
                         <button
                             key={link.path}
                             onClick={() => onNavigate(link.path)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
-                                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
+                                : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                                 }`}
                         >
                             <Icon size={20} className={isActive ? 'text-blue-600' : 'text-gray-500'} />
