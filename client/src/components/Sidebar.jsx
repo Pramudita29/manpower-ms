@@ -17,8 +17,6 @@ import { usePathname } from 'next/navigation';
 export function Sidebar({ role, onLogout }) {
     const pathname = usePathname();
 
-    // Standardized links - Using plural 'employers' to match common API patterns
-    // If your folder is singular, change 'employers' to 'employer' below.
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
@@ -32,7 +30,8 @@ export function Sidebar({ role, onLogout }) {
     const employeeLinks = [
         { path: '/dashboard/employee', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/employee/employer', label: 'Employers', icon: Building2 },
-        { path: '/dashboard/employee/job-demands', label: 'Job Demands', icon: Briefcase },
+        // Changed from job-demands to job-demand to match your file structure
+        { path: '/dashboard/employee/job-demand', label: 'Job Demands', icon: Briefcase },
         { path: '/dashboard/employee/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/employee/reports', label: 'Reports', icon: FileText },
@@ -61,8 +60,7 @@ export function Sidebar({ role, onLogout }) {
                 {links.map((link) => {
                     const Icon = link.icon;
                     
-                    // Logic: If it's the dashboard root, match exactly. 
-                    // Otherwise, match if the current path starts with the link path.
+                    // Logic: Dashboard root matches exactly. Sub-routes match if path starts with link.path.
                     const isActive = link.exact 
                         ? pathname === link.path 
                         : pathname.startsWith(link.path);
