@@ -6,6 +6,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth'); // NEW: Import Routes
 const employerRoutes = require('./routes/employerRoutes');
+const jobDemandRoutes = require('./routes/jobDemandRoutes');
+
 
 // Load environment variables from .env file
 dotenv.config();
@@ -29,6 +31,9 @@ app.use(express.json());
 // ----------------------------------------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/employers', employerRoutes);
+
+// ... other middleware
+app.use('/api/job-demands', jobDemandRoutes);
 
 
 // Database Connection (MOVED UP)
