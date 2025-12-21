@@ -1,14 +1,14 @@
 "use client";
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
-import { JobDemandListPage } from '../../../../components/Employee/JobDemandListPage';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 import { JobDemandDetailsPage } from '../../../../components/Employee/JobDemandDetailsPage';
+import { JobDemandListPage } from '../../../../components/Employee/JobDemandListPage';
 
 export default function JobDemandsPage() {
     const router = useRouter();
-    const [view, setView] = useState('list'); // views: 'list', 'create', 'details', 'edit'
+    const [view, setView] = useState('list');
     const [jobDemands, setJobDemands] = useState([]);
     const [employers, setEmployers] = useState([]);
     const [selectedJobDemand, setSelectedJobDemand] = useState(null);
@@ -45,15 +45,15 @@ export default function JobDemandsPage() {
     useEffect(() => {
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('userRole');
-        
+
         if (!token || role !== 'employee') {
             router.push('/login');
             return;
         }
 
-        setUserData({ 
-            fullName: localStorage.getItem('fullName') || 'Employee', 
-            role 
+        setUserData({
+            fullName: localStorage.getItem('fullName') || 'Employee',
+            role
         });
 
         const loadData = async () => {
@@ -69,16 +69,16 @@ export default function JobDemandsPage() {
             const token = localStorage.getItem('token');
             const res = await fetch(API_URL, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${token}` 
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(formData)
             });
-            
+
             const result = await res.json();
             if (res.ok && result.success) {
-                fetchJobDemands(token);
+                await fetchJobDemands(token); // Refresh list
                 setView('list');
             } else {
                 alert(result.error || "Failed to save job demand");
@@ -97,7 +97,7 @@ export default function JobDemandsPage() {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
+
             if (res.ok) {
                 fetchJobDemands(token);
                 setView('list');
@@ -114,13 +114,13 @@ export default function JobDemandsPage() {
     };
 
     return (
-        <DashboardLayout 
-            role="employee" 
-            userName={userData.fullName} 
-            currentPath="/dashboard/employee/job-demand" 
+        <DashboardLayout
+            role="employee"
+            userName={userData.fullName}
+            currentPath="/dashboard/employee/job-demand"
             onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
-            <div className="container mx-auto">
+            <div className="container mx-auto p-4">
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -128,24 +128,24 @@ export default function JobDemandsPage() {
                 ) : (
                     <>
                         {view === 'list' && (
-                            <JobDemandListPage 
-                                jobDemands={jobDemands} 
-                                onNavigate={handleNavigate} 
-                                onSelectJobDemand={(jd) => handleNavigate('details', jd)} 
+                            <JobDemandListPage
+                                jobDemands={jobDemands}
+                                onNavigate={handleNavigate}
+                                onSelectJobDemand={(jd) => handleNavigate('details', jd)}
                                 onDelete={handleDelete}
                             />
                         )}
 
                         {view === 'create' && (
-                            <CreateJobDemandPage 
-                                employers={employers} 
-                                onNavigate={() => setView('list')} 
-                                onSave={handleSave} 
+                            <CreateJobDemandPage
+                                employers={employers}
+                                onNavigate={handleNavigate}
+                                onSave={handleSave}
                             />
                         )}
 
                         {view === 'details' && (
-                            <JobDemandDetailsPage 
+                            <JobDemandDetailsPage
                                 jobDemand={selectedJobDemand}
                                 onNavigate={handleNavigate}
                                 onDelete={handleDelete}
