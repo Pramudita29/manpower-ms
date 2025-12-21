@@ -28,7 +28,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '../ui/Table';
+} from '../ui/table';
 
 export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer, onDelete }) {
     const [searchTerm, setSearchTerm] = useState('');
