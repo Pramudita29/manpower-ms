@@ -17,11 +17,12 @@ import { usePathname } from 'next/navigation';
 export function Sidebar({ role, onLogout }) {
     const pathname = usePathname();
 
+    // Define the link structures
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
-        { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
+        { path: '/dashboard/tenant-admin/worker', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
@@ -30,9 +31,7 @@ export function Sidebar({ role, onLogout }) {
     const employeeLinks = [
         { path: '/dashboard/employee', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/employee/employer', label: 'Employers', icon: Building2 },
-        // Linked to the new Job Demand backend/frontend structure
         { path: '/dashboard/employee/job-demand', label: 'Job Demands', icon: Briefcase },
-        // Linked to the Worker Management backend/frontend structure
         { path: '/dashboard/employee/worker', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/employee/reports', label: 'Reports', icon: FileText },
@@ -46,7 +45,7 @@ export function Sidebar({ role, onLogout }) {
             {/* Header / Branding */}
             <div className="p-6 border-b border-gray-200 bg-white">
                 <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
+                    <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
                         M
                     </div>
                     <h1 className="text-xl font-bold text-gray-900 tracking-tight">ManpowerMS</h1>
@@ -57,44 +56,62 @@ export function Sidebar({ role, onLogout }) {
             </div>
 
             {/* Navigation Links */}
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
                 {links.map((link) => {
                     const Icon = link.icon;
-
-                    // Logic: Highlighting logic that works with nested routes like /workers/add
-                    const isActive = link.exact
-                        ? pathname === link.path
+                    
+                    // Logic to check if path is active (including nested routes like /sub-agents/add)
+                    const isActive = link.exact 
+                        ? pathname === link.path 
                         : pathname.startsWith(link.path);
 
                     return (
                         <Link
                             key={link.path}
                             href={link.path}
-                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                                }`}
+                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                isActive
+                                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
                         >
-                            <Icon
-                                size={19}
-                                className={`transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                                    }`}
+                            <Icon 
+                                size={19} 
+                                className={`transition-colors duration-200 ${
+                                    isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                                }`} 
                             />
                             <span className="flex-1">{link.label}</span>
-                            {isActive && (
+                            
+                            {/* Active Indicator or Notification Dot */}
+                            {isActive ? (
                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
+                            ) : (
+                                // Optional: Show a subtle count for specific items if needed
+                                link.label === 'Sub Agents' && (
+                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                        Partner
+                                    </span>
+                                )
                             )}
                         </Link>
                     );
                 })}
             </nav>
 
-            {/* Footer / Logout */}
+            {/* User Profile Card */}
             <div className="p-4 border-t border-gray-100 bg-gray-50/30">
-                <div className="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Signed in as</p>
-                    <p className="text-xs font-semibold text-gray-700 truncate capitalize">{role} User</p>
+                <div className="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                        {role?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest leading-none mb-1">Signed in as</p>
+                        <p className="text-xs font-semibold text-gray-700 truncate capitalize">{role} Account</p>
+                    </div>
                 </div>
+
+                {/* Logout Button */}
                 <button
                     onClick={onLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group border border-transparent hover:border-red-100"
