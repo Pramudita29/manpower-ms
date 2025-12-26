@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import axios from 'axios';
 import {
@@ -8,8 +8,12 @@ import {
   Check,
   Clock,
   Edit,
-  FileText, Plus,
+  FileText,
+  MapPin,
+  Phone,
+  Plus,
   Trash2,
+  TrendingUp,
   UserCircle,
   Users,
   X
@@ -27,7 +31,7 @@ import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
 
-// ---------------- Mock Data (Keeping UI Pretty) ----------------
+// --- Mock Data for Charts ---
 const mockAdminStats = {
   totalEmployers: 28,
   totalEmployees: 12,
@@ -37,35 +41,36 @@ const mockAdminStats = {
   workersRejected: 34,
   workersPending: 10,
   activeJobDemands: 15,
-  pendingJobs: 9,
   upcomingDeadlines: 6
 };
 
-const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#6366F1'];
+const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444'];
 
-export function AdminDashboard({ onNavigate = () => { } }) {
-  // --- States for Notes (From your original file) ---
+export function AdminDashboard() {
+  // --- States ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState('');
 
-  // --- NEW: States for "Add Employee" Backend Logic ---
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // --- Form State (Updated with Contact & Address) ---
   const [employeeData, setEmployeeData] = useState({
     fullName: '',
     email: '',
-    password: ''
+    password: '',
+    contactNumber: '',
+    address: ''
   });
 
-  // --- Backend Function: Register Employee ---
+  // --- Logic: Register Employee ---
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Calling your existing backend route
+      // Backend automatically sets Join Date via Mongoose 'default: Date.now'
       const response = await axios.post(
         'http://localhost:5000/api/auth/add-employee',
         employeeData,
@@ -73,8 +78,8 @@ export function AdminDashboard({ onNavigate = () => { } }) {
       );
 
       alert(`Success: ${response.data.msg}`);
-      setIsModalOpen(false); // Close modal
-      setEmployeeData({ fullName: '', email: '', password: '' }); // Reset form
+      setIsModalOpen(false);
+      setEmployeeData({ fullName: '', email: '', password: '', contactNumber: '', address: '' });
     } catch (error) {
       alert(error.response?.data?.msg || 'Failed to add employee');
     } finally {
@@ -82,14 +87,13 @@ export function AdminDashboard({ onNavigate = () => { } }) {
     }
   };
 
-  // --- Notes Logic (Existing) ---
+  // --- Logic: Notes System ---
   const addNote = () => {
     if (!newNote.trim()) return;
     const note = {
       id: Date.now().toString(),
       content: newNote,
-      updatedAt: new Date().toISOString(),
-      category: 'general'
+      updatedAt: new Date().toLocaleTimeString(),
     };
     setNotes([note, ...notes]);
     setNewNote('');
@@ -103,129 +107,62 @@ export function AdminDashboard({ onNavigate = () => { } }) {
   };
 
   const saveEdit = () => {
-    setNotes(notes.map(n => n.id === editingId ? { ...n, content: editContent, updatedAt: new Date().toISOString() } : n));
+    setNotes(notes.map(n => n.id === editingId ? { ...n, content: editContent } : n));
     setEditingId(null);
   };
 
-  // --- Stats Cards Mapping ---
-  const statsCards = [
-    { label: 'Total Employers', value: mockAdminStats.totalEmployers, icon: <Building2 className="text-blue-600" /> },
-    { label: 'Total Employees', value: mockAdminStats.totalEmployees, icon: <Users className="text-indigo-600" /> },
-    { label: 'Total Workers', value: mockAdminStats.totalWorkers, icon: <UserCircle className="text-emerald-600" /> },
-    { label: 'Active Demands', value: mockAdminStats.activeJobDemands, icon: <Briefcase className="text-amber-600" /> },
-  ];
-
   return (
-    <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
+    <div className="p-6 space-y-8 max-w-[1600px] mx-auto animate-in fade-in duration-700">
 
-      {/* ---------------- Header Section ---------------- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      {/* ---------------- SECTION 1: HEADER ---------------- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Admin Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back! Here is what is happening today.</p>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Executive Dashboard</h1>
+          <p className="text-gray-500 mt-1 font-medium italic">Welcome back, Admin. Here is your agency's vitals for today.</p>
         </div>
         <Button
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 flex items-center gap-2 px-6 py-6 rounded-xl transition-all active:scale-95"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-100 flex items-center gap-2 px-8 py-7 rounded-2xl transition-all active:scale-95"
         >
           <Plus className="h-5 w-5" />
-          <span className="font-semibold text-lg">Add Employee</span>
+          <span className="font-bold text-lg">Add New Employee</span>
         </Button>
       </div>
 
-      {/* ---------------- Stat Grid ---------------- */}
+      {/* ---------------- SECTION 2: STAT CARDS ---------------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((card, idx) => (
-          <Card key={idx} className="border-none shadow-md hover:shadow-xl transition-shadow duration-300">
-            <CardContent className="p-6 flex items-center gap-5">
-              <div className="p-4 bg-gray-50 rounded-2xl">{card.icon}</div>
+        {[
+          { label: 'Employers', value: mockAdminStats.totalEmployers, icon: <Building2 className="text-blue-600" />, color: 'bg-blue-50' },
+          { label: 'Staff Members', value: mockAdminStats.totalEmployees, icon: <Users className="text-indigo-600" />, color: 'bg-indigo-50' },
+          { label: 'Total Workers', value: mockAdminStats.totalWorkers, icon: <UserCircle className="text-emerald-600" />, color: 'bg-emerald-50' },
+          { label: 'Job Demands', value: mockAdminStats.activeJobDemands, icon: <Briefcase className="text-amber-600" />, color: 'bg-amber-50' },
+        ].map((card, idx) => (
+          <Card key={idx} className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl group">
+            <CardContent className="p-7 flex items-center gap-5">
+              <div className={`p-4 ${card.color} rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
+                {card.icon}
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{card.label}</p>
-                <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{card.label}</p>
+                <p className="text-3xl font-black text-gray-900">{card.value}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* ---------------- ADD EMPLOYEE MODAL ---------------- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
-            <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
-              <h2 className="text-xl font-bold">Register New Staff</h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:rotate-90 transition-transform">
-                <X className="h-6 w-6" />
-              </button>
-            </div>
+      {/* ---------------- SECTION 3: CHARTS & NOTES ---------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <form onSubmit={handleAddEmployee} className="p-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700 ml-1">Full Name</label>
-                <Input
-                  placeholder="John Doe"
-                  className="rounded-xl h-12"
-                  value={employeeData.fullName}
-                  onChange={(e) => setEmployeeData({ ...employeeData, fullName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700 ml-1">Email Address</label>
-                <Input
-                  type="email"
-                  placeholder="john@company.com"
-                  className="rounded-xl h-12"
-                  value={employeeData.email}
-                  onChange={(e) => setEmployeeData({ ...employeeData, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700 ml-1">Password</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  className="rounded-xl h-12"
-                  value={employeeData.password}
-                  onChange={(e) => setEmployeeData({ ...employeeData, password: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 h-12 rounded-xl"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-bold"
-                >
-                  {loading ? 'Creating...' : 'Register User'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------- Charts & Notes (Keeping your original UI) ---------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Workers Distribution Chart */}
-        <Card className="shadow-lg border-none rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <UserCircle className="h-5 w-5 text-indigo-600" />
-              Workers Distribution
+        {/* Workers Distribution (2/3 width on large screens) */}
+        <Card className="lg:col-span-2 shadow-2xl shadow-gray-100 border-none rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="p-8 border-b border-gray-50 flex flex-row items-center justify-between">
+            <CardTitle className="text-xl font-bold flex items-center gap-3 text-gray-800">
+              <TrendingUp className="h-6 w-6 text-indigo-600" />
+              Recruitment Pipeline
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-[350px] p-6">
+          <CardContent className="h-[400px] p-8">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -235,50 +172,63 @@ export function AdminDashboard({ onNavigate = () => { } }) {
                     { name: 'Rejected', value: mockAdminStats.workersRejected },
                     { name: 'Pending', value: mockAdminStats.workersPending }
                   ]}
-                  innerRadius={80} outerRadius={120} paddingAngle={8} dataKey="value"
+                  innerRadius={100}
+                  outerRadius={140}
+                  paddingAngle={10}
+                  dataKey="value"
+                  stroke="none"
                 >
-                  {COLORS.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                  {COLORS.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cornerRadius={10} />
+                  ))}
                 </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={36} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Legend iconType="circle" verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '20px' }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Notes Section */}
-        <Card className="shadow-lg border-none rounded-2xl flex flex-col">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-600" />
-              Internal Notes
+        {/* Notes System (1/3 width) */}
+        <Card className="shadow-2xl shadow-gray-100 border-none rounded-3xl bg-white flex flex-col">
+          <CardHeader className="p-8 border-b border-gray-50">
+            <CardTitle className="text-xl font-bold flex items-center gap-3 text-gray-800">
+              <FileText className="h-6 w-6 text-indigo-600" />
+              Office Memo
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-4 flex-1">
+          <CardContent className="p-8 space-y-6 flex-1 flex flex-col">
             <div className="flex gap-2">
               <Input
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Type a new update..."
-                className="rounded-xl bg-gray-50 border-none h-12"
+                placeholder="Quick reminder..."
+                className="rounded-xl bg-gray-50 border-none h-12 focus:ring-2 focus:ring-indigo-100"
               />
-              <Button onClick={addNote} className="bg-indigo-600 rounded-xl h-12 px-6">Add</Button>
+              <Button onClick={addNote} className="bg-indigo-600 rounded-xl px-5 h-12">Add</Button>
             </div>
 
-            <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
+            <div className="space-y-4 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
               {notes.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">No notes yet</div>
+                <div className="text-center py-10">
+                  <p className="text-gray-300 italic text-sm">No active memos for today.</p>
+                </div>
               ) : (
                 notes.map(note => (
-                  <div key={note.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100 group">
+                  <div key={note.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md">
                     {editingId === note.id ? (
                       <div className="flex gap-2">
                         <Input value={editContent} onChange={(e) => setEditContent(e.target.value)} className="flex-1" />
-                        <Button size="sm" onClick={saveEdit}><Check className="h-4 w-4" /></Button>
+                        <Button size="sm" onClick={saveEdit} className="bg-green-500"><Check className="h-4 w-4 text-white" /></Button>
                       </div>
                     ) : (
                       <div className="flex justify-between items-start">
-                        <p className="text-sm text-gray-700">{note.content}</p>
+                        <div>
+                          <p className="text-sm text-gray-700 font-medium">{note.content}</p>
+                          <span className="text-[10px] text-gray-400 mt-1 block uppercase font-bold tracking-widest">{note.updatedAt}</span>
+                        </div>
                         <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(note)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit className="h-4 w-4" /></button>
                           <button onClick={() => removeNote(note.id)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
@@ -293,29 +243,123 @@ export function AdminDashboard({ onNavigate = () => { } }) {
         </Card>
       </div>
 
-      {/* ---------------- Bottom Stats ---------------- */}
+      {/* ---------------- SECTION 4: MODAL (The Form) ---------------- */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-md flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-300">
+            <div className="bg-indigo-600 p-8 text-white flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-black">Register Staff</h2>
+                <p className="text-indigo-100 text-sm mt-1">Join date will be automatically set to today.</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="hover:rotate-90 transition-transform duration-300 p-2 bg-indigo-500 rounded-full">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddEmployee} className="p-8 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Full Name</label>
+                  <Input
+                    placeholder="Enter name"
+                    className="rounded-2xl h-12 bg-gray-50 border-none"
+                    value={employeeData.fullName}
+                    onChange={(e) => setEmployeeData({ ...employeeData, fullName: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="email@agency.com"
+                    className="rounded-2xl h-12 bg-gray-50 border-none"
+                    value={employeeData.email}
+                    onChange={(e) => setEmployeeData({ ...employeeData, email: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Phone Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="+977..."
+                      className="rounded-2xl h-12 bg-gray-50 border-none pl-10"
+                      value={employeeData.contactNumber}
+                      onChange={(e) => setEmployeeData({ ...employeeData, contactNumber: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Access Password</label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    className="rounded-2xl h-12 bg-gray-50 border-none"
+                    value={employeeData.password}
+                    onChange={(e) => setEmployeeData({ ...employeeData, password: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Address</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="City, Country"
+                    className="rounded-2xl h-12 bg-gray-50 border-none pl-10"
+                    value={employeeData.address}
+                    onChange={(e) => setEmployeeData({ ...employeeData, address: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="pt-6 flex gap-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 h-14 rounded-2xl font-bold text-gray-500"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 h-14 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-100"
+                >
+                  {loading ? 'Processing...' : 'Complete Registration'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- SECTION 5: SECONDARY STATS ---------------- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <Clock className="text-amber-500 h-8 w-8" />
-          <div>
-            <p className="text-2xl font-bold">{mockAdminStats.upcomingDeadlines}</p>
-            <p className="text-sm text-gray-500 font-medium uppercase tracking-tighter">Upcoming Deadlines</p>
+        {[
+          { icon: Clock, label: 'Deadlines', value: mockAdminStats.upcomingDeadlines, color: 'text-amber-500' },
+          { icon: AlertCircle, label: 'Rejections', value: mockAdminStats.workersRejected, color: 'text-red-500' },
+          { icon: Check, label: 'Deployments', value: mockAdminStats.workersDeployed, color: 'text-green-500' }
+        ].map((item, i) => (
+          <div key={i} className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5 transition-transform hover:scale-105">
+            <item.icon className={`${item.color} h-10 w-10 p-2 bg-gray-50 rounded-xl`} />
+            <div>
+              <p className="text-2xl font-black text-gray-900">{item.value}</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{item.label}</p>
+            </div>
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <AlertCircle className="text-red-500 h-8 w-8" />
-          <div>
-            <p className="text-2xl font-bold">{mockAdminStats.workersRejected}</p>
-            <p className="text-sm text-gray-500 font-medium uppercase tracking-tighter">Total Rejections</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <Check className="text-green-500 h-8 w-8" />
-          <div>
-            <p className="text-2xl font-bold">{mockAdminStats.workersDeployed}</p>
-            <p className="text-sm text-gray-500 font-medium uppercase tracking-tighter">Successful Deployments</p>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

@@ -1,9 +1,8 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'); // This line was missing or misplaced
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const UserSchema = new mongoose.Schema({
-    // CHANGED: username -> fullName
     fullName: {
         type: String,
         required: [true, 'Please provide your full name'],
@@ -31,6 +30,19 @@ const UserSchema = new mongoose.Schema({
         enum: ['super_admin', 'admin', 'employee'],
         default: 'employee',
     },
+    // New Fields
+    contactNumber: {
+        type: String,
+        required: [true, 'Please provide a contact number'],
+    },
+    address: {
+        type: String,
+        required: [true, 'Please provide an address'],
+    },
+    joinDate: {
+        type: Date,
+        default: Date.now,
+    },
     companyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Company',
@@ -42,18 +54,19 @@ const UserSchema = new mongoose.Schema({
     },
 });
 
+// Hash password before saving
 UserSchema.pre('save', async function () {
     if (!this.isModified('password')) return;
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });
 
-// --- UPDATED JWT Method ---
+// JWT Generation
 UserSchema.methods.createJWT = function () {
     return jwt.sign(
         {
             userId: this._id,
-            fullName: this.fullName, // Changed from username
+            fullName: this.fullName,
             role: this.role,
             companyId: this.companyId
         },
@@ -62,8 +75,9 @@ UserSchema.methods.createJWT = function () {
     );
 };
 
-UserSchema.methods.comparePassword = async function (canditatePassword) {
-    const isMatch = await bcrypt.compare(canditatePassword, this.password);
+// Password Comparison
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    const isMatch = await bcrypt.compare(candidatePassword, this.password);
     return isMatch;
 };
 

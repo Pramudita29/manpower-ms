@@ -111,10 +111,14 @@ const registerEmployee = async (req, res) => {
         return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Only Company Admins can add employees.' });
     }
 
-    const { fullName, email, password } = req.body; // Destructure fullName
+    // Destructure new fields: contactNumber and address
+    const { fullName, email, password, contactNumber, address } = req.body;
 
-    if (!fullName || !email || !password) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Please provide full name, email, and password.' });
+    // Validation
+    if (!fullName || !email || !password || !contactNumber || !address) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            msg: 'Please provide full name, email, password, contact number, and address.'
+        });
     }
 
     const existingUser = await User.findOne({ email });
@@ -122,10 +126,14 @@ const registerEmployee = async (req, res) => {
         return res.status(StatusCodes.BAD_REQUEST).json({ msg: `User with email "${email}" already exists.` });
     }
 
+    // Create employee with new fields
+    // joinDate is handled automatically by the Schema default
     const employee = await User.create({
-        fullName, // Changed from username
+        fullName,
         email,
         password,
+        contactNumber,
+        address,
         role: 'employee',
         companyId: adminCompanyId
     });
@@ -136,10 +144,22 @@ const registerEmployee = async (req, res) => {
             id: employee._id,
             fullName: employee.fullName,
             email: employee.email,
+            contactNumber: employee.contactNumber,
+            address: employee.address,
+            joinDate: employee.joinDate,
             role: employee.role,
             companyId: employee.companyId,
         }
     });
 };
 
-module.exports = { register, login, registerEmployee };
+const getAllEmployees = async (req, res) => {
+    // Make sure to return the new fields in the list as well
+    const employees = await User.find({
+        companyId: req.user.companyId,
+        role: 'employee'
+    }).select('-password'); // Security: hide passwords in the list
+
+    res.status(StatusCodes.OK).json({ employees });
+};
+module.exports = { register, login, registerEmployee, getAllEmployees };
