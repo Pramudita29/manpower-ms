@@ -15,7 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/Table';
+} from '../ui/table';
 import { ArrowLeft, Building2, Calendar, Edit, Mail, MapPin, Phone, Trash2, Users } from 'lucide-react';
 
 export function EmployerDetailsPage({ employer, onNavigate, onDelete }) {

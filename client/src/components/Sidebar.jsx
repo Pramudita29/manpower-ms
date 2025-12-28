@@ -22,7 +22,7 @@ export function Sidebar({ role, onLogout }) {
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
-        { path: '/dashboard/tenant-admin/worker', label: 'Workers', icon: UserCircle },
+        { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/subagent', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
@@ -33,7 +33,7 @@ export function Sidebar({ role, onLogout }) {
         { path: '/dashboard/employee/employer', label: 'Employers', icon: Building2 },
         { path: '/dashboard/employee/job-demand', label: 'Job Demands', icon: Briefcase },
         { path: '/dashboard/employee/worker', label: 'Workers', icon: UserCircle },
-{ path: '/dashboard/employee/subagent', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/employee/subagent', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/employee/report', label: 'Report', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
@@ -72,8 +72,8 @@ export function Sidebar({ role, onLogout }) {
                             key={link.path}
                             href={link.path}
                             className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                                 }`}
                         >
                             <Icon

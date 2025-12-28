@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 export function EmployerDetailPage({ employer, onBack }) {
     const [demands, setDemands] = useState([]);

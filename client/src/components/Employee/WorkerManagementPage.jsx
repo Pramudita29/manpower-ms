@@ -5,7 +5,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { Input } from '../ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 export function WorkerManagementPage({ workers = [], onNavigate, onSelectWorker, onDelete }) {
   const [searchTerm, setSearchTerm] = useState('');

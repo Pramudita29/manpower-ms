@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
+import { ArrowLeft, Plus, Search } from 'lucide-react'
+import { useState } from 'react'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
-import { Button } from '../ui/Button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table'
-import { Badge } from '../../components/ui/Badge'
-import { Plus, Search, ArrowLeft } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 
 export function SubAgentListPage({
   subAgents,
@@ -128,7 +128,7 @@ export function SubAgentListPage({
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Country</TableHead>
-                
+
                 <TableHead>Contact</TableHead>
                 <TableHead>Total Workers</TableHead>
                 <TableHead>Status</TableHead>

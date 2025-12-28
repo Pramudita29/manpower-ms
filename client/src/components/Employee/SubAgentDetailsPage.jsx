@@ -7,7 +7,7 @@ import { SubAgentListPage } from '../Employee/SubAgentListPage';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ArrowLeft, Globe, TrendingUp, Users, Ship } from 'lucide-react';
 
 export default function SubAgentPage() {
