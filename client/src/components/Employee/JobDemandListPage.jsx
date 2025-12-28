@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/table';
+} from '../ui/Table';
 
 export function JobDemandListPage({
   jobDemands = [],
