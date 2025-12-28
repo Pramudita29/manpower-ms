@@ -23,7 +23,7 @@ export function Sidebar({ role, onLogout }) {
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
         { path: '/dashboard/tenant-admin/worker', label: 'Workers', icon: UserCircle },
-        { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/tenant-admin/subagent', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
@@ -33,8 +33,8 @@ export function Sidebar({ role, onLogout }) {
         { path: '/dashboard/employee/employer', label: 'Employers', icon: Building2 },
         { path: '/dashboard/employee/job-demand', label: 'Job Demands', icon: Briefcase },
         { path: '/dashboard/employee/worker', label: 'Workers', icon: UserCircle },
-        { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
-        { path: '/dashboard/employee/reports', label: 'Reports', icon: FileText },
+{ path: '/dashboard/employee/subagent', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/employee/report', label: 'Report', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
@@ -60,7 +60,9 @@ export function Sidebar({ role, onLogout }) {
                 {links.map((link) => {
                     const Icon = link.icon;
 
-                    // Logic to check if path is active (including nested routes like /sub-agents/add)
+                    // Improved active logic: 
+                    // Matches exact for dashboard, and startsWith for categories to keep them 
+                    // highlighted when you are in "Add" or "Details" views.
                     const isActive = link.exact
                         ? pathname === link.path
                         : pathname.startsWith(link.path);
@@ -81,16 +83,8 @@ export function Sidebar({ role, onLogout }) {
                             />
                             <span className="flex-1">{link.label}</span>
 
-                            {/* Active Indicator or Notification Dot */}
-                            {isActive ? (
+                            {isActive && (
                                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
-                            ) : (
-                                // Optional: Show a subtle count for specific items if needed
-                                link.label === 'Sub Agents' && (
-                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
-                                        Partner
-                                    </span>
-                                )
                             )}
                         </Link>
                     );
@@ -104,8 +98,8 @@ export function Sidebar({ role, onLogout }) {
                         {role?.charAt(0).toUpperCase()}
                     </div>
                     <div className="overflow-hidden">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest leading-none mb-1">Signed in as</p>
-                        <p className="text-xs font-semibold text-gray-700 truncate capitalize">{role} Account</p>
+                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest leading-none mb-1">Account</p>
+                        <p className="text-xs font-semibold text-gray-700 truncate capitalize">{role}</p>
                     </div>
                 </div>
 
