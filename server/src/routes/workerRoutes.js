@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const upload = require('../middleware/upload'); // Keep your existing upload.js
-const { addWorker, getAllWorkers } = require('../controllers/workerController');
+const upload = require('../middleware/upload');
 
-// Add new worker (Handles Multi-part form data)
+const {
+  addWorker,
+  getAllWorkers,
+  updateWorker,
+} = require('../controllers/workerController');
+
 router.post('/add', upload.array('documents', 10), addWorker);
-
-// Get workers for the management page
 router.get('/', getAllWorkers);
+router.put('/:id', upload.array('documents', 10), updateWorker);
 
 module.exports = router;
