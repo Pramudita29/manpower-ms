@@ -3,14 +3,20 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AddWorkerPage } from '../../../../components/Employee/AddWorkerPage';
 import { WorkerManagementPage } from '../../../../components/Employee/WorkerManagementPage';
+import { WorkerDetailsPage } from '../../../../components/Employee/WorkerDetailPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 
 export default function WorkersPage() {
   const router = useRouter();
-  const [view, setView] = useState('list'); // 'list', 'add', 'edit'
+  const [view, setView] = useState('list'); 
   const [workers, setWorkers] = useState([]);
+  const [employers, setEmployers] = useState([]);
+  const [jobDemands, setJobDemands] = useState([]);
+  const [subAgents, setSubAgents] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [userData, setUserData] = useState({ fullName: '', role: '' });
+
+  const isEdit = view === 'edit';
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -19,53 +25,101 @@ export default function WorkersPage() {
       router.push('/login');
       return;
     }
-    setUserData({ fullName: localStorage.getItem('fullName'), role });
-    fetchWorkers(token);
+    setUserData({ 
+      fullName: localStorage.getItem('fullName') || 'User', 
+      role 
+    });
+    fetchAllData(token);
   }, [router]);
 
-  const fetchWorkers = async (token) => {
+  const fetchAllData = async (token) => {
     try {
-      const res = await fetch('http://localhost:5000/api/workers', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await res.json();
-      if (result.success) setWorkers(result.data);
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [workerRes, empRes, demandRes, agentRes] = await Promise.all([
+        fetch('http://localhost:5000/api/workers', { headers }),
+        fetch('http://localhost:5000/api/employers', { headers }),
+        fetch('http://localhost:5000/api/job-demands', { headers }),
+        fetch('http://localhost:5000/api/sub-agents', { headers })
+      ]);
+
+      const workerResult = await workerRes.json();
+      if (workerResult.success) setWorkers(workerResult.data);
+      
+      const empData = await empRes.json();
+      setEmployers(empData.data || []);
+
+      const demandData = await demandRes.json();
+      setJobDemands(demandData.data || []);
+
+      const agentData = await agentRes.json();
+      setSubAgents(agentData.data || []);
     } catch (error) {
-      console.error("Failed to fetch:", error);
+      console.error("Failed to fetch data:", error);
+    }
+  };
+
+  const handleUpdateWorkerStage = async (workerId, stageId, status) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`http://localhost:5000/api/workers/${workerId}/stage`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ stageId, status })
+      });
+
+      if (res.ok) {
+        fetchAllData(token);
+        const result = await res.json();
+        setSelectedWorker(result.data);
+      }
+    } catch (error) {
+      console.error("Stage update failed", error);
     }
   };
 
   const handleSave = async (formData) => {
     const token = localStorage.getItem('token');
-    const res = await fetch('http://localhost:5000/api/workers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(formData)
-    });
+    // NOTE: Backend route for adding is '/add' as per your router file
+    const url = isEdit 
+      ? `http://localhost:5000/api/workers/${selectedWorker._id}` 
+      : 'http://localhost:5000/api/workers/add'; 
+    
+    const method = isEdit ? 'PUT' : 'POST';
 
-    const result = await res.json();
-    if (res.ok && result.success) {
-      fetchWorkers(token);
-      setView('list');
-    } else {
-      throw new Error(result.error || "Failed to save worker");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this worker?")) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/workers/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const data = new FormData();
+      
+      Object.keys(formData).forEach(key => {
+        if (key === 'documents') {
+          // 'documents' matches the upload.array('documents') in your backend router
+          formData.documents.forEach((file) => {
+            if (file instanceof File) data.append('documents', file);
+          });
+        } else {
+          // Append normal fields (name, passportNumber, etc.)
+          data.append(key, formData[key]);
+        }
       });
-      if (res.ok) fetchWorkers(token);
-    } catch (error) {
-      console.error("Delete failed:", error);
+
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: data // FormData handles boundary and Content-Type
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        fetchAllData(token);
+        setView('list');
+      } else {
+        alert(result.message || "Failed to save worker");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("An error occurred while saving.");
     }
   };
 
@@ -82,18 +136,28 @@ export default function WorkersPage() {
           onNavigate={setView}
           onSelectWorker={(worker) => {
             setSelectedWorker(worker);
-            setView('edit');
+            setView('details'); 
           }}
-          onDelete={handleDelete}
         />
       )}
 
       {(view === 'add' || view === 'edit') && (
         <AddWorkerPage
-          onNavigate={() => setView('list')}
+          employers={employers}
+          jobDemands={jobDemands}
+          subAgents={subAgents}
+          onNavigate={setView}
           onSave={handleSave}
-          initialData={view === 'edit' ? selectedWorker : null}
-          isEdit={view === 'edit'}
+          initialData={isEdit ? selectedWorker : null}
+          isEdit={isEdit}
+        />
+      )}
+
+      {view === 'details' && selectedWorker && (
+        <WorkerDetailsPage 
+          worker={selectedWorker}
+          onNavigate={setView}
+          onUpdateWorkerStage={handleUpdateWorkerStage}
         />
       )}
     </DashboardLayout>

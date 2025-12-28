@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getSubAgents, createSubAgent } = require('../controllers/subagentcontroller');
+const { getSubAgents, createSubAgent } = require('../controllers/subAgentController');
 
 router.get('/', getSubAgents);
 router.post('/', createSubAgent);
