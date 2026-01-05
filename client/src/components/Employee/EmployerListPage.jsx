@@ -25,9 +25,16 @@ import {
     TableRow,
 } from '../ui/table';
 
+/**
+ * EmployerListPage Component
+ * @param {Array} employers - Array of employer objects from backend
+ * @param {Function} onNavigate - Navigation handler (e.g., to 'add' view)
+ * @param {Function} onSelectEmployer - Handler for clicking a row (details view)
+ */
 export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer }) {
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Filter logic for Search Bar
     const filtered = useMemo(() => {
         return employers.filter(emp =>
             (emp.employerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -38,7 +45,7 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
 
-            {/* Header Section */}
+            {/* --- HEADER SECTION --- */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">My Employers</h1>
@@ -55,8 +62,9 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                 </Button>
             </div>
 
-            {/* Main Data Table Card */}
+            {/* --- TABLE CARD --- */}
             <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
+                {/* Search and Stats Bar */}
                 <div className="bg-white border-b px-6 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="relative max-w-md w-full group">
                         <Search
@@ -104,12 +112,12 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                                         <Building2 size={18} />
                                                     </div>
                                                     <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                                        {employer.employerName || employer.name}
+                                                        {employer.employerName}
                                                     </p>
                                                 </div>
                                             </TableCell>
 
-                                            {/* NEW: Dedicated Contact Column */}
+                                            {/* Contact Details Column */}
                                             <TableCell>
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center text-sm font-medium text-gray-700">
@@ -133,27 +141,29 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                                 </div>
                                             </TableCell>
 
-                                            {/* Demands Column */}
+                                            {/* Job Demands Column (Backend Virtual) */}
                                             <TableCell className="text-center">
                                                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
                                                     <Briefcase size={14} />
                                                     <span className="font-mono font-bold">
+                                                        {/* totalJobDemands comes from the populated virtual */}
                                                         {employer.totalJobDemands || 0}
                                                     </span>
                                                 </div>
                                             </TableCell>
 
-                                            {/* Hires Column */}
+                                            {/* Total Hires Column (Backend Virtual) */}
                                             <TableCell className="text-center">
                                                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100">
                                                     <Users size={14} />
                                                     <span className="font-mono font-bold">
+                                                        {/* totalHires comes from the populated virtual */}
                                                         {employer.totalHires || 0}
                                                     </span>
                                                 </div>
                                             </TableCell>
 
-                                            {/* Status Column */}
+                                            {/* Status Badge */}
                                             <TableCell>
                                                 <Badge
                                                     variant={employer.status === 'active' || !employer.status ? 'success' : 'secondary'}
@@ -163,7 +173,7 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                                 </Badge>
                                             </TableCell>
 
-                                            {/* Arrow Icon */}
+                                            {/* Action Arrow */}
                                             <TableCell className="pr-6 text-right">
                                                 <div className="inline-flex text-gray-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-300">
                                                     <ArrowUpRight size={20} />
@@ -172,12 +182,14 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                         </TableRow>
                                     ))
                                 ) : (
+                                    /* Empty State */
                                     <TableRow>
                                         <TableCell colSpan={7} className="py-20 text-center bg-gray-50/50">
                                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm text-gray-300 mb-4">
                                                 <Search size={32} />
                                             </div>
                                             <h3 className="text-gray-900 font-bold text-lg">No partners found</h3>
+                                            <p className="text-gray-500">Try adjusting your search or add a new employer.</p>
                                         </TableCell>
                                     </TableRow>
                                 )}

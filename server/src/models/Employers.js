@@ -9,7 +9,7 @@ const EmployerSchema = new mongoose.Schema({
   country: { type: String, required: [true, 'Please provide country'] },
   contact: { type: String, required: [true, 'Please provide contact number'] },
   address: { type: String, required: [true, 'Please provide address'] },
-  status: { type: String, default: 'active' }, // Added status field
+  status: { type: String, default: 'active' },
   notes: { type: String },
   companyId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -23,25 +23,23 @@ const EmployerSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
-  toJSON: { virtuals: true }, // Essential: makes virtuals show up in JSON
+  toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// --- NEW: VIRTUALS ---
-
-// Automatically link to JobDemands collection (assumes your JobDemand model has an 'employer' field)
-EmployerSchema.virtual('jobDemands', {
+// Virtual for Total Job Demands
+EmployerSchema.virtual('totalJobDemands', {
   ref: 'JobDemand',
   localField: '_id',
-  foreignField: 'employer',
-  count: true // This just returns the number
+  foreignField: 'employerId', // Corrected to match JobDemand model
+  count: true 
 });
 
-// Automatically count hires (assumes your Worker model has an 'employerId' field)
-EmployerSchema.virtual('totalHiresCount', {
+// Virtual for Total Hires (Workers)
+EmployerSchema.virtual('totalHires', {
   ref: 'Worker',
   localField: '_id',
-  foreignField: 'employerId',
+  foreignField: 'employerId', // Matches Worker model field
   count: true
 });
 
