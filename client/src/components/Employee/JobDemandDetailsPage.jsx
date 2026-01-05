@@ -29,23 +29,41 @@ export function JobDemandDetailsPage({ jobDemand: initialData, onNavigate, onDel
     useEffect(() => {
         const fetchFullDetails = async () => {
             const id = getNormalizedId(initialData);
-            if (!id) return;
+
+            // 1. Safety check for ID
+            if (!id || id === "undefined") {
+                console.error("Invalid ID provided to fetchFullDetails");
+                return;
+            }
 
             setLoading(true);
             try {
                 const response = await fetch(`/api/job-demands/${id}`);
-                const result = await response.json();
 
+                // 2. Check if the response is actually OK (200-299)
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Server returned ${response.status}:`, errorText.slice(0, 100));
+                    return;
+                }
+
+                // 3. Check content type before parsing
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    console.error("Wait! The server didn't send JSON. It sent:", contentType);
+                    return;
+                }
+
+                const result = await response.json();
                 if (result.success) {
                     setJobDemand(result.data);
                 }
             } catch (error) {
-                console.error("Failed to fetch details:", error);
+                console.error("Fetch failed completely:", error);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchFullDetails();
     }, [initialData?._id]);
 

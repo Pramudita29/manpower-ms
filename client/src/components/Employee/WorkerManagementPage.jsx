@@ -1,179 +1,213 @@
 "use client";
-import React, { useState } from 'react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '../ui/table';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import {
+  ArrowUpRight,
+  Briefcase,
+  CheckCircle2,
+  FileText,
+  MapPin,
+  Plus,
+  Search,
+  User,
+  UserCheck,
+  X
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
-import { Search, Plus, User, FileText, ArrowUpRight } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Card, CardContent } from '../ui/Card';
+import { Input } from '../ui/Input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '../ui/table';
 
-export function WorkerManagementPage({ 
-  workers = [], 
-  onNavigate, 
-  onSelectWorker 
+export function WorkerManagementPage({
+  workers = [],
+  onNavigate,
+  onSelectWorker
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Filter workers based on Search Input (Name or Passport)
-  const filteredWorkers = workers.filter(worker => 
-    worker.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    worker.passportNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredWorkers = useMemo(() => {
+    return workers.filter(worker =>
+      worker.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      worker.passportNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [workers, searchTerm]);
 
-  const getStatusBadge = (status) => {
+  const getStatusVariant = (status) => {
     switch (status?.toLowerCase()) {
-      case 'completed':
       case 'deployed':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Deployed</Badge>;
-      case 'processing':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Processing</Badge>;
-      case 'rejected':
-        return <Badge className="bg-red-100 text-red-800 border-red-200">Rejected</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-200">Pending</Badge>;
+      case 'completed': return 'success';
+      case 'processing': return 'warning';
+      case 'rejected': return 'destructive';
+      default: return 'secondary';
     }
   };
 
+  // Helper to format stage names (e.g., "visa-processing" to "Visa Processing")
+  const formatStage = (stage) => {
+    if (!stage) return 'Not Started';
+    return stage.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Top Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Worker Management</h1>
-          <p className="text-gray-500 text-sm">Manage and track worker processing status</p>
+    <div className="max-w-7xl mx-auto p-8 space-y-8 antialiased">
+
+      {/* 1. Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Worker Management</h1>
+          <p className="text-slate-500 font-medium italic">Track processing stages and deployment status for all recruits.</p>
         </div>
-        <Button 
-          onClick={() => onNavigate('add')} 
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+        <Button
+          onClick={() => onNavigate('add')}
+          className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-6 h-12 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
         >
-          <Plus size={18} />
-          Add New Worker
+          <Plus size={20} className="mr-2 stroke-[3px] shrink-0" />
+          <span className="font-semibold">Add New Worker</span>
         </Button>
       </div>
 
-      {/* Statistics Quick View */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500 uppercase">Total Workers</p>
-                <p className="text-2xl font-bold">{workers.length}</p>
+      {/* 2. Quick Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: 'Total Workers', value: workers.length, icon: User, color: 'indigo' },
+          { label: 'In Processing', value: workers.filter(w => w.status === 'processing').length, icon: FileText, color: 'amber' },
+          { label: 'Deployed', value: workers.filter(w => ['deployed', 'completed'].includes(w.status)).length, icon: CheckCircle2, color: 'emerald' }
+        ].map((stat, i) => (
+          <Card key={i} className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-2xl overflow-hidden ring-1 ring-slate-100">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                  <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
+                </div>
+                <div className={`p-4 bg-${stat.color}-50 rounded-2xl text-${stat.color}-600`}>
+                  <stat.icon size={28} />
+                </div>
               </div>
-              <div className="p-3 bg-blue-50 rounded-full text-blue-600">
-                <User size={24} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500 uppercase">In Processing</p>
-                <p className="text-2xl font-bold">
-                  {workers.filter(w => w.status === 'processing').length}
-                </p>
-              </div>
-              <div className="p-3 bg-yellow-50 rounded-full text-yellow-600">
-                <FileText size={24} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500 uppercase">Deployed</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {workers.filter(w => w.status === 'deployed' || w.status === 'completed').length}
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-full text-green-600">
-                <Check size={24} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Main Table Section */}
-      <Card className="overflow-hidden border-none shadow-sm">
-        <CardHeader className="bg-white border-b px-6 py-4">
-          <div className="flex items-center bg-gray-50 px-3 py-2 rounded-md border w-full max-w-md">
-            <Search className="text-gray-400 mr-2" size={18} />
-            <input 
-              type="text"
-              placeholder="Search by name or passport..."
-              className="bg-transparent border-none outline-none text-sm w-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </CardHeader>
+      {/* 3. Search & Filter Bar */}
+      <div className="relative max-w-md group">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
+        </div>
+        <Input
+          placeholder="Search name or passport..."
+          className="pl-11 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-50 transition-all border-none ring-1 ring-slate-200"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        {searchTerm && (
+          <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* 4. Worker Table */}
+      <Card className="border-none shadow-2xl shadow-slate-200/60 overflow-hidden bg-white rounded-3xl ring-1 ring-slate-100">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="w-[250px]">Worker Name</TableHead>
-                  <TableHead>Passport No.</TableHead>
-                  <TableHead>Employer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+              <TableHeader className="bg-slate-50/40">
+                <TableRow className="hover:bg-transparent border-b border-slate-100">
+                  <TableHead className="py-5 pl-8 text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Worker Name</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Passport</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Status</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Current Stage</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Employer</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Sub-Agent</TableHead>
+                  <TableHead className="text-right pr-8 text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredWorkers.length > 0 ? (
                   filteredWorkers.map((worker) => (
-                    <TableRow 
-                      key={worker._id} 
-                      className="cursor-pointer hover:bg-blue-50/50 transition-colors group"
+                    <TableRow
+                      key={worker._id}
+                      className="group hover:bg-slate-50/80 cursor-pointer transition-all border-b border-slate-50 last:border-0"
                       onClick={() => onSelectWorker(worker)}
                     >
-                      <TableCell>
-                        <div className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {worker.name}
+                      {/* Name Column */}
+                      <TableCell className="py-6 pl-8">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                            <User size={18} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{worker.name}</p>
+                            <p className="text-[11px] text-slate-400 font-medium">{worker.contact || 'No contact'}</p>
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">{worker.contact}</div>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {worker.passportNumber}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {worker.employerId?.name || (
-                          <span className="text-gray-400 italic">Not Assigned</span>
-                        )}
-                      </TableCell>
+
+                      {/* Passport Column */}
                       <TableCell>
-                        {getStatusBadge(worker.status)}
+                        <span className="font-mono text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-600">
+                          {worker.passportNumber}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-blue-600 group-hover:bg-blue-100"
+
+                      {/* Status Column */}
+                      <TableCell>
+                        <Badge
+                          variant={getStatusVariant(worker.status)}
+                          className="rounded-lg px-2 py-0.5 text-[10px] font-black uppercase border-none ring-1 ring-inset"
                         >
-                          View Details
-                          <ArrowUpRight size={14} className="ml-1" />
-                        </Button>
+                          {worker.status || 'Pending'}
+                        </Badge>
+                      </TableCell>
+
+                      {/* Current Stage Column */}
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                          <MapPin size={14} className="text-indigo-400" />
+                          {formatStage(worker.currentStage)}
+                        </div>
+                      </TableCell>
+
+                      {/* Employer Column */}
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <Briefcase size={14} className="text-slate-300" />
+                          {worker.employerId?.employerName || worker.employerId?.name || <span className="text-slate-300 italic">Unassigned</span>}
+                        </div>
+                      </TableCell>
+
+                      {/* Sub-Agent Column */}
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <UserCheck size={14} className="text-slate-300" />
+                          {worker.subAgentId?.name || <span className="text-slate-300 italic">Direct</span>}
+                        </div>
+                      </TableCell>
+
+                      {/* Action Column */}
+                      <TableCell className="text-right pr-8">
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-all">
+                          <ArrowUpRight size={18} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-gray-500">
-                      No workers found.
+                    <TableCell colSpan={7} className="py-24 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <Search size={48} className="text-slate-100" />
+                        <h3 className="text-slate-900 font-bold">No workers found</h3>
+                        <p className="text-slate-400 text-sm">Adjust your search filters to find what you're looking for.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
@@ -185,21 +219,3 @@ export function WorkerManagementPage({
     </div>
   );
 }
-
-// Sub-component for icons
-const Check = ({ size, className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
