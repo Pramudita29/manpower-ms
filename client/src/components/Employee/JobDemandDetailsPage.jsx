@@ -376,3 +376,4 @@ export function JobDemandDetailsPage({ jobDemand: initialData, onNavigate, onDel
         </div>
     );
 }
+
