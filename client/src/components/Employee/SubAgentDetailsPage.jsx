@@ -243,3 +243,4 @@ function SubAgentDetailsView({ subAgent, onBack }) {
         </div>
     );
 }
+
