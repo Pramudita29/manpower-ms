@@ -38,8 +38,7 @@ export function Sidebar({ role, onLogout }) {
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
-    const links = role === 'admin' ? adminLinks : employeeLinks;
-
+    const links = (role === 'admin' || role === 'tenant-admin') ? adminLinks : employeeLinks;
     return (
         <div className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col sticky top-0 z-40 shadow-sm">
             {/* Header / Branding */}
