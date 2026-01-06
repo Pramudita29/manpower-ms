@@ -19,8 +19,8 @@ const NoteSchema = new mongoose.Schema({
     },
     // This tracks which employee wrote the note
     createdBy: {
-        type: mongoose.Schema.ObjectId,
-        ref: 'User',
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User', // This must match the name you gave your User model
         required: true
     }
 }, { timestamps: true }); // This automatically adds 'createdAt' and 'updatedAt'
