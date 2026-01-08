@@ -1,246 +1,228 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { DashboardLayout } from '../DashboardLayout';
-import { SubAgentListPage } from '../Employee/SubAgentListPage';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import {
+    ArrowLeft,
+    Calendar,
+    Globe,
+    Loader2,
+    Mail,
+    Phone,
+    Ship,
+    TrendingUp,
+    Users
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { ArrowLeft, Globe, TrendingUp, Users, Ship } from 'lucide-react';
 
-export default function SubAgentPage() {
-    const router = useRouter();
-    const [view, setView] = useState('list'); // 'list' or 'details'
-    const [subAgents, setSubAgents] = useState([]);
-    const [selectedSubAgent, setSelectedSubAgent] = useState(null);
-    const [userData, setUserData] = useState({ fullName: '', role: '' });
+export function SubAgentDetailsPage({ subAgent, onBack }) {
+    const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-        
-        if (!token || role !== 'employee') {
-            router.push('/login');
-            return;
+        if (subAgent?._id) {
+            fetchAgentWorkers();
         }
+    }, [subAgent]);
 
-        setUserData({ 
-            fullName: localStorage.getItem('fullName') || 'Employee', 
-            role 
-        });
-        
-        fetchAgents(token);
-    }, [router]);
-
-    const fetchAgents = async (token) => {
+    const fetchAgentWorkers = async () => {
         setLoading(true);
+        const token = localStorage.getItem('token');
         try {
-            const res = await fetch('http://localhost:5000/api/sub-agents', {
+            // Fetch workers specifically registered under this sub-agent
+            const res = await fetch(`http://localhost:5000/api/workers?subAgentId=${subAgent._id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
             if (result.success) {
-                setSubAgents(result.data || []);
+                setWorkers(result.data || []);
             }
         } catch (err) {
-            console.error("Fetch error:", err);
+            console.error("Error fetching workers for this agent:", err);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleAddAgent = async (agentData) => {
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch('http://localhost:5000/api/sub-agents', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(agentData),
-            });
-            const result = await res.json();
-            if (result.success) {
-                await fetchAgents(token);
-                setView('list');
-                return true;
-            }
-            return false;
-        } catch (err) {
-            console.error("Add error:", err);
-            return false;
-        }
+    // --- REAL-TIME ANALYTICS ---
+    const stats = {
+        total: workers.length,
+        active: workers.filter(w => w.status === 'active' || w.status === 'deployed').length,
+        pending: workers.filter(w => w.status === 'pending' || w.status === 'processing').length,
     };
 
-    return (
-        <DashboardLayout 
-            role="employee"
-            userName={userData.fullName}
-            currentPath="/dashboard/employee/subagent"
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
-        >
-            {loading && view === 'list' ? (
-                <div className="flex h-[60vh] items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-            ) : (
-                <>
-                    {view === 'list' && (
-                        <div className="p-6 max-w-7xl mx-auto">
-                            <SubAgentListPage 
-                                subAgents={subAgents} 
-                                onAddSubAgent={handleAddAgent}
-                                onSelectSubAgent={(id) => {
-                                    const agent = subAgents.find(a => a._id === id);
-                                    setSelectedSubAgent(agent);
-                                    setView('details');
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {view === 'details' && (
-                        <SubAgentDetailsView 
-                            subAgent={selectedSubAgent} 
-                            onBack={() => setView('list')} 
-                        />
-                    )}
-                </>
-            )}
-        </DashboardLayout>
-    );
-}
-
-/**
- * SUB-COMPONENT: SubAgentDetailsView
- * Includes Mock Data for Workers and Statistics
- */
-function SubAgentDetailsView({ subAgent, onBack }) {
     if (!subAgent) return null;
 
-    // --- MOCK DATA FOR UI PREVIEW ---
-    const mockWorkers = [
-        { name: "John Doe", job: "Electrician", employer: "Global Tech", status: "Deployed", date: "2023-10-12" },
-        { name: "Jane Smith", job: "Welder", employer: "BuildCo", status: "Pending", date: "2023-11-05" },
-        { name: "Ahmed Khan", job: "Driver", employer: "Logistics Pro", status: "Interview", date: "2023-11-20" },
-    ];
-
-    const stats = {
-        total: subAgent.totalWorkersBrought || 12, // fallback to mock 12
-        deployed: Math.floor((subAgent.totalWorkersBrought || 12) * 0.7),
-        pending: Math.ceil((subAgent.totalWorkersBrought || 12) * 0.3)
-    };
-
     return (
-        <div className="p-6 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
+            {/* Header / Navigation */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={onBack}>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={onBack}
+                        className="rounded-full hover:bg-gray-100"
+                    >
                         <ArrowLeft size={20} />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">{subAgent.name}</h1>
-                        <p className="text-gray-500">Partner from {subAgent.country}</p>
+                        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                            {subAgent.fullName || subAgent.name}
+                        </h1>
+                        <p className="text-gray-500 flex items-center gap-1">
+                            <Globe size={14} /> Global Partner from {subAgent.country}
+                        </p>
                     </div>
                 </div>
-                <Badge className="px-4 py-1 text-md" variant={subAgent.status === 'active' ? 'success' : 'secondary'}>
-                    {subAgent.status.toUpperCase()}
-                </Badge>
+                <div className="flex items-center gap-2">
+                    <Badge className="px-4 py-1.5 text-sm font-bold uppercase tracking-wider bg-green-100 text-green-700 border-green-200">
+                        {subAgent.status || 'Active'}
+                    </Badge>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Basic Info */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <Globe className="text-blue-500" size={18}/> Contact Details
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b">
-                            <span className="text-gray-500 text-sm">Phone/Contact</span>
-                            <span className="font-mono">{subAgent.contact}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b">
-                            <span className="text-gray-500 text-sm">Country</span>
-                            <span className="font-semibold">{subAgent.country}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2">
-                            <span className="text-gray-500 text-sm">Joined</span>
-                            <span>{new Date(subAgent.createdAt).toLocaleDateString()}</span>
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="border-none shadow-sm ring-1 ring-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Referred</p>
+                                <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
+                                <Users size={24} />
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Performance Stats */}
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <TrendingUp className="text-green-500" size={18}/> Performance Overview
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                                <Users className="text-blue-600 mb-2" size={20}/>
-                                <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
-                                <p className="text-xs text-blue-600 font-medium">Total Referred</p>
+                <Card className="border-none shadow-sm ring-1 ring-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Currently Deployed</p>
+                                <p className="text-3xl font-bold text-green-600">{stats.active}</p>
                             </div>
-                            <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                                <Ship className="text-green-600 mb-2" size={20}/>
-                                <p className="text-2xl font-bold text-green-700">{stats.deployed}</p>
-                                <p className="text-xs text-green-600 font-medium">Total Deployed</p>
+                            <div className="p-3 bg-green-50 rounded-lg text-green-600">
+                                <Ship size={24} />
                             </div>
-                            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                                <TrendingUp className="text-amber-600 mb-2" size={20}/>
-                                <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-                                <p className="text-xs text-amber-600 font-medium">In Pipeline</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm ring-1 ring-gray-200">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">In Process</p>
+                                <p className="text-3xl font-bold text-amber-600">{stats.pending}</p>
+                            </div>
+                            <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
+                                <TrendingUp size={24} />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Workers Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg">Recent Referrals from this Agent</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Worker Name</TableHead>
-                                <TableHead>Job Category</TableHead>
-                                <TableHead>Assigned Employer</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Date Added</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {mockWorkers.map((worker, i) => (
-                                <TableRow key={i}>
-                                    <TableCell className="font-medium">{worker.name}</TableCell>
-                                    <TableCell>{worker.job}</TableCell>
-                                    <TableCell>{worker.employer}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={worker.status === 'Deployed' ? 'success' : 'warning'}>
-                                            {worker.status}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>{worker.date}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Detailed Profile Info */}
+                <Card className="lg:col-span-1 border-none shadow-sm ring-1 ring-gray-200 h-fit">
+                    <CardHeader className="border-b bg-gray-50/50 py-4">
+                        <CardTitle className="text-sm font-bold text-gray-700 uppercase tracking-widest">Agent Profile</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-5">
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-400 uppercase">Contact Number</label>
+                            <p className="text-sm font-mono flex items-center gap-2"><Phone size={14} /> {subAgent.contact}</p>
+                        </div>
+                        {subAgent.email && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 uppercase">Email Address</label>
+                                <p className="text-sm flex items-center gap-2 text-blue-600"><Mail size={14} /> {subAgent.email}</p>
+                            </div>
+                        )}
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-400 uppercase">Base Country</label>
+                            <p className="text-sm font-semibold">{subAgent.country}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-400 uppercase">Partner Since</label>
+                            <p className="text-sm flex items-center gap-2 text-gray-600">
+                                <Calendar size={14} />
+                                {subAgent.createdAt ? new Date(subAgent.createdAt).toLocaleDateString() : 'N/A'}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Referred Workers Table */}
+                <Card className="lg:col-span-3 border-none shadow-sm ring-1 ring-gray-200 overflow-hidden">
+                    <CardHeader className="border-b bg-gray-50/50 flex flex-row items-center justify-between py-4">
+                        <CardTitle className="text-sm font-bold text-gray-700 uppercase tracking-widest">Workers referred by this Agent</CardTitle>
+                        <Badge variant="secondary">{workers.length} Total</Badge>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center p-20 gap-3">
+                                <Loader2 className="animate-spin text-blue-600" size={32} />
+                                <p className="text-sm text-gray-500 font-medium">Loading worker records...</p>
+                            </div>
+                        ) : workers.length === 0 ? (
+                            <div className="text-center py-20 px-6">
+                                <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Users className="text-gray-300" size={32} />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900">No Workers Found</h3>
+                                <p className="text-gray-500 max-w-xs mx-auto">This sub-agent hasn't registered any workers in the system yet.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader className="bg-gray-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold py-4">Full Name</TableHead>
+                                            <TableHead className="font-bold">Passport</TableHead>
+                                            <TableHead className="font-bold">Employer</TableHead>
+                                            <TableHead className="font-bold">Process Status</TableHead>
+                                            <TableHead className="font-bold text-right">Registered</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {workers.map((worker) => (
+                                            <TableRow key={worker._id} className="hover:bg-slate-50 transition-colors">
+                                                <TableCell className="font-bold text-blue-700">{worker.name}</TableCell>
+                                                <TableCell className="font-mono text-sm text-gray-600">{worker.passportNumber}</TableCell>
+                                                <TableCell className="text-gray-700 font-medium">
+                                                    {worker.employerId?.employerName || worker.employerName || "Unassigned"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        variant={
+                                                            worker.status === 'active' || worker.status === 'deployed' ? 'success' :
+                                                                worker.status === 'pending' ? 'warning' : 'secondary'
+                                                        }
+                                                        className="capitalize"
+                                                    >
+                                                        {worker.status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right text-gray-500 text-sm">
+                                                    {new Date(worker.createdAt).toLocaleDateString()}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
-
