@@ -10,8 +10,18 @@ const SubAgentSchema = new mongoose.Schema({
     default: 'active',
     lowercase: true 
   },
-  // We don't manually input this; we calculate it later based on workers
-  totalWorkersBrought: { type: Number, default: 0 } 
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
+  },
+  // ADDED THIS FIELD - MUST BE IN SCHEMA TO SAVE TO DB
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  totalWorkersBrought: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('SubAgent', SubAgentSchema);

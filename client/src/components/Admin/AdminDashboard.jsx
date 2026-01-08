@@ -36,10 +36,12 @@ export function AdminDashboard() {
   const [adminNotes, setAdminNotes] = useState([]);
   const [staffNotes, setStaffNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editContent, setEditContent] = useState('');
   const [employeeData, setEmployeeData] = useState({
-    fullName: '', email: '', password: '', contactNumber: '', address: ''
+    fullName: '',
+    email: '',
+    password: '',
+    contactNumber: '',
+    address: ''
   });
 
   const api = axios.create({ baseURL: 'http://localhost:5000/api' });
@@ -68,7 +70,24 @@ export function AdminDashboard() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Chart Data Preparation
+  // Restored Employee Registration Logic
+  const handleRegisterEmployee = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await api.post('/auth/add-employee', employeeData);
+      if (response.data) {
+        alert('Employee onboarded successfully!');
+        setIsModalOpen(false);
+        setEmployeeData({ fullName: '', email: '', password: '', contactNumber: '', address: '' });
+        fetchData(); // Refresh stats
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.msg || "Failed to register employee";
+      alert(errorMsg);
+      console.error("Registration Error:", error);
+    }
+  };
+
   const barData = [
     { name: 'Employers', value: stats.employersAdded },
     { name: 'Demands', value: stats.activeJobDemands },
@@ -119,8 +138,6 @@ export function AdminDashboard() {
 
       {/* MAIN ANALYTICS SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        {/* LEFT: ANALYTICS & CHARTS */}
         <div className="lg:col-span-8 space-y-6">
           <Card className="rounded-[2rem] border-none shadow-md bg-white overflow-hidden">
             <CardHeader className="p-8 pb-0">
@@ -131,14 +148,11 @@ export function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-8 h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
                   <Bar dataKey="value" radius={[10, 10, 10, 10]} barSize={50}>
                     {barData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -149,28 +163,26 @@ export function AdminDashboard() {
             </CardContent>
           </Card>
 
-          {/* STAFF ACTIVITY LOG */}
           <Card className="rounded-[2rem] border-none shadow-md bg-white">
             <CardHeader className="p-8 border-b border-slate-50 flex flex-row justify-between items-center">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-emerald-500" />
                 Recent Staff Activity
               </CardTitle>
-              <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">Global Feed</span>
             </CardHeader>
             <CardContent className="p-8">
               <div className="space-y-6">
                 {staffNotes.slice(0, 5).map(note => (
-                  <div key={note._id} className="flex gap-4 items-start group">
+                  <div key={note._id} className="flex gap-4 items-start">
                     <div className="h-10 w-10 rounded-2xl bg-slate-100 flex-shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs border border-slate-200">
                       {note.createdBy?.fullName?.charAt(0) || 'S'}
                     </div>
                     <div className="flex-1 border-b border-slate-50 pb-4">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-sm font-bold text-slate-900">{note.createdBy?.fullName || 'Staff Member'}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{new Date(note.createdAt).toLocaleTimeString()}</span>
+                        <span className="text-[10px] text-slate-400">{new Date(note.createdAt).toLocaleTimeString()}</span>
                       </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">"{note.content}"</p>
+                      <p className="text-sm text-slate-600">"{note.content}"</p>
                     </div>
                   </div>
                 ))}
@@ -179,12 +191,8 @@ export function AdminDashboard() {
           </Card>
         </div>
 
-        {/* RIGHT: PRIVATE NOTES & ACTIONS */}
         <div className="lg:col-span-4 space-y-6">
           <Card className="rounded-[2rem] border-none shadow-md bg-indigo-900 text-white overflow-hidden relative">
-            {/* Decorative Background Element */}
-            <div className="absolute top-[-20px] right-[-20px] h-32 w-32 bg-indigo-500/20 rounded-full blur-3xl"></div>
-
             <CardHeader className="p-8">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <FileText className="h-5 w-5 text-indigo-300" />
@@ -199,20 +207,17 @@ export function AdminDashboard() {
                   placeholder="Quick scratchpad..."
                   className="bg-transparent border-none outline-none text-sm px-3 py-2 flex-1 placeholder:text-indigo-300"
                 />
-                <button onClick={() => {/* addNote func */ }} className="bg-indigo-500 hover:bg-indigo-400 p-2 rounded-xl transition-colors">
-                  <Send className="h-4 w-4" />
-                </button>
+                <button className="bg-indigo-500 p-2 rounded-xl"><Send className="h-4 w-4" /></button>
               </div>
-
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                 {adminNotes.map(note => (
-                  <div key={note._id} className="p-4 bg-indigo-800/30 rounded-2xl border border-indigo-700/30 group relative transition-all">
-                    <p className="text-sm text-indigo-50 font-medium leading-relaxed">{note.content}</p>
+                  <div key={note._id} className="p-4 bg-indigo-800/30 rounded-2xl border border-indigo-700/30 group">
+                    <p className="text-sm text-indigo-50">{note.content}</p>
                     <div className="mt-3 flex justify-between items-center">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-tighter">{new Date(note.createdAt).toDateString()}</span>
+                      <span className="text-[9px] font-bold text-indigo-400">{new Date(note.createdAt).toDateString()}</span>
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="text-indigo-300 hover:text-white"><Edit className="h-3 w-3" /></button>
-                        <button className="text-indigo-300 hover:text-red-400"><Trash2 className="h-3 w-3" /></button>
+                        <button className="text-indigo-300"><Edit className="h-3 w-3" /></button>
+                        <button className="text-indigo-300"><Trash2 className="h-3 w-3" /></button>
                       </div>
                     </div>
                   </div>
@@ -223,23 +228,75 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* ONBOARDING MODAL (Placeholder for your form) */}
+      {/* FULLY FUNCTIONAL ONBOARDING MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black">Staff Onboarding</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Staff Onboarding</h2>
+                <p className="text-slate-500 text-xs font-medium">Create a secure account for your team member</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
-            {/* Your form logic here... */}
-            <p className="text-slate-500 text-sm mb-6">Enter details to grant access to the system dashboard.</p>
-            <div className="space-y-4">
-              <Input placeholder="Full Name" className="h-12 rounded-xl bg-slate-50 border-none" />
-              <Input placeholder="Work Email" className="h-12 rounded-xl bg-slate-50 border-none" />
-              <Button className="w-full h-12 bg-slate-900 text-white rounded-xl font-bold">Create Account</Button>
-            </div>
+
+            <form onSubmit={handleRegisterEmployee} className="space-y-4">
+              <Input
+                placeholder="Full Name"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-none px-4"
+                value={employeeData.fullName}
+                onChange={(e) => setEmployeeData({ ...employeeData, fullName: e.target.value })}
+              />
+              <Input
+                type="email"
+                placeholder="Work Email"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-none px-4"
+                value={employeeData.email}
+                onChange={(e) => setEmployeeData({ ...employeeData, email: e.target.value })}
+              />
+              <Input
+                type="password"
+                placeholder="Password"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-none px-4"
+                value={employeeData.password}
+                onChange={(e) => setEmployeeData({ ...employeeData, password: e.target.value })}
+              />
+              <Input
+                placeholder="Phone Number"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-none px-4"
+                value={employeeData.contactNumber}
+                onChange={(e) => setEmployeeData({ ...employeeData, contactNumber: e.target.value })}
+              />
+              <Input
+                placeholder="Office/Home Address"
+                required
+                className="h-12 rounded-xl bg-slate-50 border-none px-4"
+                value={employeeData.address}
+                onChange={(e) => setEmployeeData({ ...employeeData, address: e.target.value })}
+              />
+
+              <div className="pt-4 flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 h-12 bg-slate-100 text-slate-600 rounded-xl font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-[2] h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100"
+                >
+                  Create Account
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -247,16 +304,15 @@ export function AdminDashboard() {
   );
 }
 
-// Sub-component for Stats
 function StatCard({ label, value, icon, color, bg }) {
   return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-200/50 shadow-sm flex items-center gap-5 transition-transform hover:scale-[1.02] cursor-default">
+    <div className="bg-white p-6 rounded-[2rem] border border-slate-200/50 shadow-sm flex items-center gap-5 transition-transform hover:scale-[1.02]">
       <div className={`${bg} ${color} p-4 rounded-2xl`}>
         {icon}
       </div>
       <div>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-        <p className="text-2xl font-black text-slate-900 mt-0.5 tracking-tight">{value.toLocaleString()}</p>
+        <p className="text-2xl font-black text-slate-900 mt-0.5">{value.toLocaleString()}</p>
       </div>
     </div>
   );
