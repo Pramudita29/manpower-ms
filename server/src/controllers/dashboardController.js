@@ -6,23 +6,28 @@ const SubAgent = require('../models/SubAgent');
 const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 
+/**
+ * GET /api/dashboard
+ * Fetches stats, employee counts, and notes/reminders
+ */
 const getDashboardData = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
 
         /**
          * ownershipFilter ensures:
-         * 1. Admins see everything in the company.
-         * 2. Employees ONLY see what they personally created.
+         * 1. Admins see all documents within their company.
+         * 2. Employees see only documents they created.
          */
         const ownershipFilter = { companyId };
         if (role !== 'admin' && role !== 'super_admin') {
             ownershipFilter.createdBy = userId;
         }
 
-        // Calculation for "Urgent" tasks: Target date within the next 3 days
+        // Setup dates for Urgent Reminders (Target date within next 3 days)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
         const threeDaysFromNow = new Date();
         threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
         threeDaysFromNow.setHours(23, 59, 59, 999);
@@ -33,24 +38,33 @@ const getDashboardData = async (req, res) => {
             workersCount,
             agentsCount,
             notes,
-            urgentTasksCount
+            urgentTasksCount,
+            totalEmployeesCount // New count for total staff
         ] = await Promise.all([
             Employer.countDocuments(ownershipFilter),
             JobDemand.countDocuments(ownershipFilter),
             Worker.countDocuments(ownershipFilter),
             SubAgent.countDocuments(ownershipFilter),
+
+            // Fetch both regular notes and reminders
             Note.find(ownershipFilter)
                 .populate('createdBy', 'fullName')
                 .sort({ createdAt: -1 })
-                .limit(20), // Increased limit to ensure reminders are visible
+                .limit(30),
 
-            // Dynamically count tasks that have a deadline approaching
+            // Count tasks with a targetDate (reminders) approaching soon
             Note.countDocuments({
                 ...ownershipFilter,
-                targetDate: { 
-                    $gte: today, 
-                    $lte: threeDaysFromNow 
+                targetDate: {
+                    $gte: today,
+                    $lte: threeDaysFromNow
                 }
+            }),
+
+            // Total staff members registered in this company
+            User.countDocuments({
+                companyId,
+                role: 'employee'
             })
         ]);
 
@@ -62,29 +76,38 @@ const getDashboardData = async (req, res) => {
                     activeJobDemands: demandsCount,
                     workersInProcess: workersCount,
                     activeSubAgents: agentsCount,
-                    tasksNeedingAttention: urgentTasksCount // Real count from DB
+                    tasksNeedingAttention: urgentTasksCount,
+                    totalEmployees: totalEmployeesCount // Passed to frontend
                 },
-                notes
+                notes // Includes content, category, and targetDate (reminder)
             }
         });
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            msg: error.message
+        });
     }
 };
 
+/**
+ * POST /api/notes
+ * Creates a new note or reminder
+ */
 const addNote = async (req, res) => {
     try {
-        // Included targetDate in destructuring
         const { content, category, targetDate } = req.body;
-        
+
         if (!content) {
-            return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Note content is required" });
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                msg: "Note content is required"
+            });
         }
 
         const newNote = await Note.create({
             content,
             category: category || 'general',
-            targetDate: targetDate || null, // Saves the deadline from the calendar
+            targetDate: targetDate || null, // Saves the deadline (reminder)
             companyId: req.user.companyId,
             createdBy: req.user.userId
         });
@@ -96,22 +119,32 @@ const addNote = async (req, res) => {
     }
 };
 
+/**
+ * PATCH /api/notes/:id
+ * Updates content or changes the reminder date
+ */
 const updateNote = async (req, res) => {
     try {
-        // Using req.body allows targetDate, content, and category to be updated
+        // Ensure user can only update notes within their company
         const note = await Note.findOneAndUpdate(
             { _id: req.params.id, companyId: req.user.companyId },
-            req.body, 
+            req.body,
             { new: true, runValidators: true }
         ).populate('createdBy', 'fullName');
 
-        if (!note) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        if (!note) {
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        }
+
         res.status(StatusCodes.OK).json({ success: true, data: note });
     } catch (error) {
         res.status(StatusCodes.BAD_REQUEST).json({ msg: error.message });
     }
 };
 
+/**
+ * DELETE /api/notes/:id
+ */
 const deleteNote = async (req, res) => {
     try {
         const note = await Note.findOneAndDelete({
@@ -119,11 +152,19 @@ const deleteNote = async (req, res) => {
             companyId: req.user.companyId
         });
 
-        if (!note) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        if (!note) {
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        }
+
         res.status(StatusCodes.OK).json({ success: true });
     } catch (error) {
         res.status(StatusCodes.BAD_REQUEST).json({ msg: error.message });
     }
 };
 
-module.exports = { getDashboardData, addNote, updateNote, deleteNote };
+module.exports = {
+    getDashboardData,
+    addNote,
+    updateNote,
+    deleteNote
+};
