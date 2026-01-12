@@ -19,6 +19,7 @@ import {
     UserCircle,
     UserPlus,
     Users,
+    X as CloseIcon,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast, Toaster } from "react-hot-toast";
@@ -28,10 +29,10 @@ import { Button } from "../ui/Button";
 import { Card, CardContent } from "../ui/Card";
 
 /**
- * Single-file optimized Employee Dashboard (updated)
- * - Shows linked entity names in notes/reminders (worker/employer/job-demand/sub-agent)
- * - Fix: "Mark as done" now appears in archive because backend GET /api/dashboard must return completed notes (see backend change below)
- * - Uses lookup maps (O(1) resolution) for entity labels
+ * Employee Dashboard (updated)
+ * - Urgent toast shows every time dashboard mounts when urgent > 0
+ * - Uses fixed toast id to avoid duplicates
+ * - "View" button removed per request; new toast design and Close (X) button only
  */
 
 /* ----------------------------- Constants -------------------------------- */
@@ -55,14 +56,17 @@ const NEPALI_MONTHS = [
 ];
 
 const URGENT_TOAST_STYLE = {
-    background: "#fef2f2",
-    color: "#991b1b",
-    border: "1px solid #fecaca",
-    padding: "16px 24px",
-    fontSize: "15px",
-    maxWidth: "420px",
+    background: "#fff7f7",
+    color: "#7f1d1d",
+    border: "1px solid #fca5a5",
+    padding: "12px 14px",
+    fontSize: "14px",
+    maxWidth: "480px",
     borderRadius: "12px",
+    boxShadow: "0 6px 20px rgba(252, 165, 165, 0.12)",
 };
+
+const URGENT_TOAST_ID = "urgent-reminders";
 
 /* ----------------------------- Helpers ---------------------------------- */
 
@@ -236,7 +240,6 @@ function useDashboard() {
     const [entity, setEntity] = useState("");
 
     const [urgentCount, setUrgentCount] = useState(0);
-    const [toastId, setToastId] = useState(null);
 
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
@@ -274,30 +277,49 @@ function useDashboard() {
             return d !== null && d >= 0 && d <= 3 ? count + 1 : count;
         }, 0);
 
-        if (urgent !== urgentCount) {
-            setUrgentCount(urgent);
-            if (toastId) toast.dismiss(toastId);
+        // update state
+        setUrgentCount(urgent);
 
-            if (urgent > 0) {
-                const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
-                const id = toast(msg, {
+        // If there are urgent reminders, create/update the single toast (fixed id prevents duplicates).
+        // This will show every time the dashboard mounts and urgent > 0.
+        if (urgent > 0) {
+            const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
+
+            toast(
+                (t) => (
+                    <div className="flex items-center gap-3 w-full">
+                        <div className="flex items-center justify-center rounded-full bg-red-50 p-2">
+                            <AlertCircle className="text-red-600" size={18} />
+                        </div>
+
+                        <div className="flex-1 ml-2">
+                            <div className="text-sm font-extrabold text-[#7f1d1d]">{msg}</div>
+                            <div className="text-xs text-[#9b1f1f] mt-0.5">Check your reminders panel for details</div>
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                            }}
+                            className="ml-3 p-1.5 rounded-full hover:bg-slate-100"
+                            aria-label="Close urgent reminder"
+                        >
+                            <CloseIcon size={16} className="text-slate-600" />
+                        </button>
+                    </div>
+                ),
+                {
+                    id: URGENT_TOAST_ID,
                     duration: Infinity,
                     position: "top-center",
-                    icon: <AlertCircle className="text-red-600" size={24} />,
                     style: URGENT_TOAST_STYLE,
-                    action: {
-                        label: "View",
-                        onClick: () => {
-                            setShowArchived(false);
-                            window.scrollTo({ top: 300, behavior: "smooth" });
-                            toast.dismiss(id);
-                        },
-                    },
-                });
-                setToastId(id);
-            }
+                }
+            );
+        } else {
+            // No urgent reminders — ensure toast is dismissed
+            toast.dismiss(URGENT_TOAST_ID);
         }
-    }, [notes, loading, daysLeft, urgentCount, toastId]);
+    }, [notes, loading, daysLeft]);
 
     const sortedReminders = useMemo(() => {
         const allReminders = notes.filter((n) => n.category === "reminder");
