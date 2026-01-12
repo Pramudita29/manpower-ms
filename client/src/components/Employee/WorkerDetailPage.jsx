@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card'; 
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -6,14 +6,18 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from '../ui/table'; 
 import { 
-  Download, FileText, Check, Clock, ArrowLeft, ExternalLink
+  Download, FileText, Check, Clock, ArrowLeft, ExternalLink, CheckCircle2
 } from 'lucide-react';
 
 export function WorkerDetailsPage({ worker, onNavigate, onUpdateWorkerStage }) {
-  
-  // Debugging: Monitor when the worker data changes
+  // Local state to allow instant UI updates when changing status
+  const [localTimeline, setLocalTimeline] = useState([]);
+
+  // Sync local state when the worker prop changes from the parent/database
   useEffect(() => {
-    console.log("Worker data updated in Details Page:", worker);
+    if (worker?.stageTimeline) {
+      setLocalTimeline(worker.stageTimeline);
+    }
   }, [worker]);
 
   if (!worker) {
@@ -34,7 +38,6 @@ export function WorkerDetailsPage({ worker, onNavigate, onUpdateWorkerStage }) {
   }
 
   // --- DATA MAPPING ---
-  // We use worker.documents directly from the fresh worker object
   const workerDocuments = (worker.documents || []).map((doc, index) => ({
     id: doc._id || index,
     name: doc.name || 'Untitled Document',
@@ -44,17 +47,35 @@ export function WorkerDetailsPage({ worker, onNavigate, onUpdateWorkerStage }) {
     path: doc.path 
   }));
 
-  const processingStages = worker.stageTimeline || [];
-  const totalStages = processingStages.length || 0;
-  const completedStages = processingStages.filter(s => s.status === 'completed').length;
+  const totalStages = localTimeline.length || 0;
+  const completedStages = localTimeline.filter(s => s.status === 'completed').length;
   const progressPercentage = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
+
+  // INTERNAL HANDLER: Updates UI immediately, then calls parent function
+  const handleStatusChange = async (stageId, newStatus) => {
+    // 1. Update UI locally so it feels fast
+    const updatedTimeline = localTimeline.map(stage => 
+      stage._id === stageId ? { ...stage, status: newStatus } : stage
+    );
+    setLocalTimeline(updatedTimeline);
+
+    // 2. Call the parent prop to update the database
+    if (onUpdateWorkerStage) {
+      try {
+        await onUpdateWorkerStage(worker._id, stageId, newStatus);
+      } catch (error) {
+        console.error("Failed to update status in database:", error);
+        // Optional: Revert local state if database update fails
+        setLocalTimeline(worker.stageTimeline);
+        alert("Failed to save changes to server.");
+      }
+    }
+  };
 
   const handleDownload = (doc) => {
     if (!doc.path) return alert("No file path found");
     const baseUrl = 'http://localhost:5000';
-    // Clean backslashes for URL compatibility
     const cleanPath = doc.path.replace(/\\/g, '/');
-    // If it's a relative path (starts with 'uploads/'), prepend baseUrl
     const url = cleanPath.startsWith('http') ? cleanPath : `${baseUrl}/${cleanPath}`; 
     window.open(url, '_blank');
   };
@@ -169,21 +190,21 @@ export function WorkerDetailsPage({ worker, onNavigate, onUpdateWorkerStage }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {processingStages.map((stage) => (
+                {localTimeline.map((stage) => (
                   <TableRow key={stage._id}>
                     <TableCell className="font-medium capitalize">
-                      {stage.stage.replace(/-/g, ' ')}
+                      {stage.stage ? stage.stage.replace(/-/g, ' ') : 'N/A'}
                     </TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(stage.status)}>
-                        {stage.status?.toUpperCase()}
+                        {(stage.status || 'pending').toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <select 
-                        className="text-xs border rounded-md p-1.5 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                        className="text-xs border rounded-md p-1.5 bg-white outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                         value={stage.status}
-                        onChange={(e) => onUpdateWorkerStage(worker._id, stage._id, e.target.value)}
+                        onChange={(e) => handleStatusChange(stage._id, e.target.value)}
                       >
                         <option value="pending">Pending</option>
                         <option value="in-progress">In Progress</option>
