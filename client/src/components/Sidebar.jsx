@@ -1,21 +1,38 @@
 "use client";
 
 import {
-    Briefcase,
-    Building2,
-    FileText,
-    LayoutDashboard,
-    LogOut,
-    Settings,
-    UserCheck,
-    UserCircle,
-    Users
+    Briefcase, Building2, FileText, LayoutDashboard,
+    LogOut, Settings, UserCheck, UserCircle, Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-export function Sidebar({ role, onLogout, companyName, companyLogo }) {
+export function Sidebar({ onLogout }) {
     const pathname = usePathname();
+    const [sidebarData, setSidebarData] = useState({
+        name: 'ManpowerMS',
+        logo: null,
+        role: 'user'
+    });
+
+    useEffect(() => {
+        // Retrieve the full user object saved during login
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            try {
+                const parsed = JSON.parse(storedUser);
+                setSidebarData({
+                    // Use the names exactly as they come from your backend login response
+                    name: parsed.companyName || 'ManpowerMS',
+                    logo: parsed.companyLogo || null,
+                    role: parsed.role || 'user'
+                });
+            } catch (err) {
+                console.error("Error parsing user data from localStorage", err);
+            }
+        }
+    }, []);
 
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -37,92 +54,79 @@ export function Sidebar({ role, onLogout, companyName, companyLogo }) {
         { path: '/settings', label: 'Settings', icon: Settings },
     ];
 
-    const links = (role === 'admin' || role === 'tenant-admin') ? adminLinks : employeeLinks;
+    // Determine which links to show based on role
+    const links = (sidebarData.role === 'admin' || sidebarData.role === 'super_admin')
+        ? adminLinks
+        : employeeLinks;
 
     return (
         <div className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col sticky top-0 z-40 shadow-sm">
-            {/* Header / Branding - DYNAMIC LOGO & NAME */}
+
+            {/* BRANDING SECTION */}
             <div className="p-6 border-b border-gray-200 bg-white">
                 <div className="flex items-center gap-3">
-                    {companyLogo ? (
-                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 shadow-sm flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 bg-white flex items-center justify-center">
+                        {sidebarData.logo ? (
                             <img
-                                src={companyLogo}
+                                src={sidebarData.logo}
                                 alt="Company Logo"
-                                className="w-full h-full object-contain bg-white"
+                                className="w-full h-full object-contain"
                             />
-                        </div>
-                    ) : (
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
-                            {companyName?.charAt(0) || 'M'}
-                        </div>
-                    )}
+                        ) : (
+                            <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl uppercase">
+                                {sidebarData.name.charAt(0)}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="overflow-hidden">
-                        <h1 className="text-sm font-bold text-gray-900 tracking-tight truncate leading-tight">
-                            {companyName || "ManpowerMS"}
+                        <h1 className="text-[15px] font-bold text-gray-900 tracking-tight truncate leading-tight">
+                            {sidebarData.name}
                         </h1>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                            Management System
+                        <p className="text-[11px] font-extrabold text-blue-600 uppercase tracking-widest">
+                            {sidebarData.role.replace('_', ' ')}
                         </p>
                     </div>
                 </div>
 
-                <div className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
-                    {role?.replace('-', ' ')} Portal
+                <div className="mt-4 flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Status</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                        <span className="text-[10px] font-bold text-green-600 uppercase">Online</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Navigation Links */}
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+            {/* NAVIGATION */}
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {links.map((link) => {
                     const Icon = link.icon;
-                    const isActive = link.exact
-                        ? pathname === link.path
-                        : pathname.startsWith(link.path);
-
+                    const isActive = link.exact ? pathname === link.path : pathname.startsWith(link.path);
                     return (
                         <Link
                             key={link.path}
                             href={link.path}
-                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                    : 'text-gray-500 hover:bg-gray-50'
                                 }`}
                         >
-                            <Icon
-                                size={19}
-                                className={`transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                                    }`}
-                            />
+                            <Icon size={19} className={isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'} />
                             <span className="flex-1">{link.label}</span>
-
-                            {isActive && (
-                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
-                            )}
                         </Link>
                     );
                 })}
             </nav>
 
-            {/* User Profile Card */}
-            <div className="p-4 border-t border-gray-100 bg-gray-50/30">
-                <div className="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                        {role?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="overflow-hidden">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest leading-none mb-1">Account</p>
-                        <p className="text-xs font-semibold text-gray-700 truncate capitalize">{role}</p>
-                    </div>
-                </div>
-
+            {/* LOGOUT */}
+            <div className="p-4 border-t border-gray-100">
                 <button
                     onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group border border-transparent hover:border-red-100"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all"
                 >
-                    <LogOut size={19} className="text-red-400 group-hover:text-red-500 transition-colors" />
-                    <span>Logout</span>
+                    <LogOut size={19} className="text-red-400" />
+                    <span>Logout Session</span>
                 </button>
             </div>
         </div>

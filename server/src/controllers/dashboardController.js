@@ -15,7 +15,7 @@ const getDashboardData = async (req, res) => {
         const { companyId, userId, role } = req.user;
         const companyFilter = { companyId };
 
-        // Admins get all notes (including completed). Non-admins get only their notes.
+        // Admins get all notes. Non-admins get only their own notes.
         const notesFilter = { companyId };
         if (role !== 'admin' && role !== 'super_admin') {
             notesFilter.createdBy = userId;
@@ -39,10 +39,10 @@ const getDashboardData = async (req, res) => {
             Worker.countDocuments(companyFilter),
             SubAgent.countDocuments(companyFilter),
             User.countDocuments({ ...companyFilter, role: 'employee' }),
-            // Return notes (no isCompleted filter so admin can see archived/completed)
+            // Populate both createdBy and linkedEntityId (linkedEntityId uses refPath -> categoryRef)
             Note.find(notesFilter)
                 .populate('createdBy', 'fullName role email')
-                .populate('linkedEntityId') // uses refPath/categoryRef
+                .populate('linkedEntityId')
                 .sort({ createdAt: -1 })
                 .limit(200),
             Employer.find(companyFilter).select('employerName country _id').sort('employerName'),
@@ -105,7 +105,7 @@ const addNote = async (req, res) => {
             categoryRef: linkedEntityId ? categoryRef : null,
             companyId: req.user.companyId,
             createdBy: req.user.userId,
-            isCompleted: false // default
+            isCompleted: false
         });
 
         const populatedNote = await Note.findById(note._id)
@@ -149,7 +149,7 @@ const updateNote = async (req, res) => {
             const newCategory = updateData.category || (await Note.findById(id).select('category')).category;
             updateData.categoryRef = categoryModelMap[newCategory] || null;
             if (!updateData.linkedEntityId) {
-                // if linkedEntityId removed, clear categoryRef too
+                // cleared the link
                 updateData.linkedEntityId = null;
                 updateData.categoryRef = null;
             }

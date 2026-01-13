@@ -50,10 +50,8 @@ const NoteSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-// Optional: virtual to expose populated linkedEntity in a consistent field name if preferred
-// (If you prefer using .populate('linkedEntityId') directly, this virtual is not strictly necessary.)
 NoteSchema.virtual('linkedEntity', {
-    ref: doc => doc.categoryRef, // For Mongoose v6+ this form is supported for virtual population
+    ref: doc => doc.categoryRef,
     localField: 'linkedEntityId',
     foreignField: '_id',
     justOne: true

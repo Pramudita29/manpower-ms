@@ -15,7 +15,7 @@ export default function Login() {
             // Destructure the data from the response
             const { token, user } = response.data;
 
-            // Role Validation: Handle super_admin as admin for UI matching
+            // 1. Role Validation: Handle super_admin as admin for UI matching
             const actualRole = user.role === 'super_admin' ? 'admin' : user.role;
 
             if (actualRole !== selectedRole) {
@@ -23,13 +23,14 @@ export default function Login() {
                 throw new Error(`Access Denied: This account is not authorized for the ${roleDisplay} portal.`);
             }
 
-            // Persist Data
+            // 2. Persist Data
+            // We save the token and the individual pieces, but critically, 
+            // we save the whole 'user' object for the Sidebar to consume.
             localStorage.setItem('token', token);
             localStorage.setItem('userRole', user.role);
-            localStorage.setItem('companyId', user.companyId || 'null');
-            localStorage.setItem('fullName', user.fullName);
+            localStorage.setItem('user', JSON.stringify(user)); // THIS IS THE KEY FIX
 
-            // Redirection
+            // 3. Redirection Logic
             if (user.role === 'super_admin') {
                 router.push('/dashboard/super-admin');
             } else if (user.role === 'admin') {
@@ -38,8 +39,7 @@ export default function Login() {
                 router.push('/dashboard/employee');
             }
 
-            // --- THE FIX ---
-            // Return the response data so LoginPage's "data" variable is defined
+            // Return data so the LoginPage can show the "Welcome" toast
             return response.data;
 
         } catch (error) {
@@ -49,7 +49,6 @@ export default function Login() {
             } else if (error.message) {
                 errorMessage = error.message;
             }
-            // Re-throw the error so LoginPage's catch block can catch it and show the toast
             throw new Error(errorMessage);
         }
     };
