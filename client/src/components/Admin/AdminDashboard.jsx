@@ -1,19 +1,22 @@
+"use client";
+
 import adbs from 'ad-bs-converter';
 import axios from 'axios';
 import {
-  Bell, Briefcase, Building2, Contact,
+  Bell, Briefcase, Building2,
+  CheckCircle,
+  Contact,
   Edit,
-  FileText,
-  Paperclip,
+  FileText, Paperclip,
   Plus, RefreshCw, ShieldCheck,
-  Trash2,
-  TrendingUp,
+  Trash2, TrendingUp,
   UserCircle, UserPlus, Users
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid,
+  Area, AreaChart, BarChart, CartesianGrid,
+  Bar as ReBar,
   ResponsiveContainer, Tooltip, XAxis, YAxis
 } from 'recharts';
 import { Badge } from '../ui/Badge';
@@ -62,26 +65,25 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   const [showArchived, setShowArchived] = useState(false);
   const [currentTime, setCurrentTime] = useState(getNepalTime());
 
-  // form state for admin-created notes
   const [newNote, setNewNote] = useState({
     content: '',
     category: 'general',
     targetDate: '',
-    linkedEmployeeId: '',
+    linkedEntityId: '',
     attachment: null,
   });
 
   const [stats, setStats] = useState({ employersAdded: 0, activeJobDemands: 0, workersInProcess: 0, activeSubAgents: 0, totalEmployees: 0 });
-  const [allData, setAllData] = useState([]); // all notes from backend (both admin and employee notes)
+  const [allData, setAllData] = useState([]);
   const [dropdowns, setDropdowns] = useState({});
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // UI helpers / filters
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
   const [editId, setEditId] = useState(null);
 
-  const currentUserId = localStorage.getItem('userId') || null; // optional: backend should provide id in token or set userId in localStorage
+  const currentUserId = localStorage.getItem('userId') || null;
+  const myRole = localStorage.getItem('role') || null; // 'admin' or 'super_admin'
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -120,19 +122,16 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   const handleFileChange = (e) => setNewNote({ ...newNote, attachment: e.target.files?.[0] || null });
 
   const isEditable = (note) => {
-    // Admin can CRUD notes that were created by admin (or by current user).
-    // We attempt several fallbacks:
+    if (myRole === 'admin' || myRole === 'super_admin') return true;
     if (!note?.createdBy) return false;
     if (note.createdBy._id && currentUserId && note.createdBy._id === currentUserId) return true;
-    if (note.createdBy.role === 'admin' || note.createdBy.isAdmin || note.createdBy.isStaff) return true;
-    // fallback: if createdBy has email matching admin's email in localStorage (optional)
     const myEmail = localStorage.getItem('userEmail');
     if (myEmail && note.createdBy.email === myEmail) return true;
     return false;
   };
 
   const resetForm = () => {
-    setNewNote({ content: '', category: 'general', targetDate: '', linkedEmployeeId: '', attachment: null });
+    setNewNote({ content: '', category: 'general', targetDate: '', linkedEntityId: '', attachment: null });
     setEditId(null);
   };
 
@@ -142,13 +141,12 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     try {
       const token = localStorage.getItem('token');
 
-      // If there is an attachment, send as multipart/form-data; otherwise send JSON.
       if (newNote.attachment) {
         const fd = new FormData();
         fd.append('content', newNote.content);
         fd.append('category', newNote.category);
         if (newNote.targetDate) fd.append('targetDate', newNote.targetDate);
-        if (newNote.linkedEmployeeId) fd.append('linkedEntityId', newNote.linkedEmployeeId);
+        if (newNote.linkedEntityId) fd.append('linkedEntityId', newNote.linkedEntityId);
         fd.append('attachment', newNote.attachment);
         if (editId) {
           await axios.patch(`${API_BASE}/notes/${editId}`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
@@ -160,7 +158,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           content: newNote.content,
           category: newNote.category,
           targetDate: newNote.targetDate || undefined,
-          linkedEntityId: newNote.linkedEmployeeId || undefined,
+          linkedEntityId: newNote.linkedEntityId || undefined,
         };
         if (editId) {
           await axios.patch(`${API_BASE}/notes/${editId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
@@ -185,8 +183,8 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       content: note.content || '',
       category: note.category || 'general',
       targetDate: note.targetDate ? new Date(note.targetDate).toISOString().split('T')[0] : '',
-      linkedEmployeeId: note.linkedEntityId || '',
-      attachment: null, // attachments can't be prefilled client-side
+      linkedEntityId: (note.linkedEntityId && typeof note.linkedEntityId === 'object') ? (note.linkedEntityId._id || note.linkedEntityId.id) : (note.linkedEntityId || ''),
+      attachment: null,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -204,31 +202,102 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     }
   };
 
+  const markDone = async (id) => {
+    if (!window.confirm('Mark this reminder as done?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(`${API_BASE}/notes/${id}/done`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Marked as done');
+      fetchAdminData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not update status');
+    }
+  };
+
   const getDaysRemaining = (date) => {
     if (!date) return null;
     const diff = new Date(date).getTime() - getNepalTime().getTime();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
-  // Build employees map for quick lookup and the employee dropdown for admin
+  // dropdown lists
   const employees = dropdowns.employees || [];
-  const employeesMap = useMemo(() => {
-    const m = {};
-    (employees || []).forEach(e => (m[e._id] = e));
-    return m;
-  }, [employees]);
+  const workers = dropdowns.workers || [];
+  const employers = dropdowns.employers || [];
+  const demands = dropdowns.demands || [];
+  const subAgents = dropdowns.subAgents || [];
 
-  // split notes: reminders vs other; admin-created vs employee-created
-  const reminders = allData.filter(n => n.category === 'reminder').sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
-  const activeReminders = reminders.filter(n => (getDaysRemaining(n.targetDate) ?? 0) >= 0);
-  const archivedReminders = reminders.filter(n => (getDaysRemaining(n.targetDate) ?? 0) < 0);
+  const employeesMap = useMemo(() => {
+    const m = {}; employees.forEach(e => (m[e._id] = e)); return m;
+  }, [employees]);
+  const workersMap = useMemo(() => {
+    const m = {}; workers.forEach(w => (m[w._id] = w)); return m;
+  }, [workers]);
+  const employersMap = useMemo(() => {
+    const m = {}; employers.forEach(e => (m[e._id] = e)); return m;
+  }, [employers]);
+  const demandsMap = useMemo(() => {
+    const m = {}; demands.forEach(d => (m[d._id] = d)); return m;
+  }, [demands]);
+  const subAgentsMap = useMemo(() => {
+    const m = {}; subAgents.forEach(s => (m[s._id] = s)); return m;
+  }, [subAgents]);
+
+  // friendly label helper for ANY linked entity (worker, employer, demand, sub-agent, staff)
+  const getLinkedLabel = useCallback((note) => {
+    if (!note?.linkedEntityId) return null;
+    const linked = (typeof note.linkedEntityId === 'object') ? note.linkedEntityId : null;
+    const id = linked ? (linked._id || linked.id) : note.linkedEntityId;
+
+    // If the linked object is populated and contains distinguishing fields, prefer those
+    if (linked) {
+      // try common fields
+      if (linked.name) return linked.name + (linked.passportNumber ? ` • ${linked.passportNumber}` : '');
+      if (linked.employerName) return linked.employerName + (linked.country ? ` • ${linked.country}` : '');
+      if (linked.jobTitle) return linked.jobTitle;
+      if (linked.fullName) return linked.fullName;
+      return id;
+    }
+
+    // Fallback lookups using dropdowns
+    switch (note.category) {
+      case 'worker': {
+        const w = workersMap[id];
+        return w ? `${w.name}${w.passportNumber ? ` • ${w.passportNumber}` : ''}` : id;
+      }
+      case 'employer': {
+        const e = employersMap[id];
+        return e ? `${e.employerName}${e.country ? ` • ${e.country}` : ''}` : id;
+      }
+      case 'job-demand': {
+        const d = demandsMap[id];
+        return d ? d.jobTitle : id;
+      }
+      case 'sub-agent': {
+        const s = subAgentsMap[id];
+        return s ? s.name : id;
+      }
+      default: {
+        // maybe it's linked to an employee (staff)
+        const emp = employeesMap[id];
+        return emp ? emp.fullName || emp.name : id;
+      }
+    }
+  }, [workersMap, employersMap, demandsMap, subAgentsMap, employeesMap]);
+
+  // reminders / notes split
+  const reminders = allData.filter(n => n.category === 'reminder').sort((a, b) => new Date(a.targetDate || 0) - new Date(b.targetDate || 0));
+  const activeReminders = reminders.filter(n => !n.isCompleted && ((getDaysRemaining(n.targetDate) ?? 999) >= 0));
+  const archivedReminders = reminders.filter(n => n.isCompleted || ((getDaysRemaining(n.targetDate) ?? -999) < 0));
   const notes = allData.filter(n => n.category !== 'reminder');
 
-  // apply employee filter to notes listing (for the right column)
   const filteredNotes = notes.filter(n => {
     if (selectedEmployeeFilter === 'all') return true;
-    // consider linkedEntityId as the link to employee OR if createdBy is that employee
-    return n.linkedEntityId === selectedEmployeeFilter || n.createdBy?._id === selectedEmployeeFilter;
+    const linkedId = (n.linkedEntityId && typeof n.linkedEntityId === 'object') ? (n.linkedEntityId._id || n.linkedEntityId.id) : n.linkedEntityId;
+    if (linkedId === selectedEmployeeFilter) return true;
+    if (n.createdBy && (n.createdBy._id === selectedEmployeeFilter)) return true;
+    return false;
   });
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-indigo-600" size={48} /></div>;
@@ -266,7 +335,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </div>
       </div>
 
-      {/* 5 STAT CARDS */}
+      {/* STAT CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <AdminStatCard title="Workers" value={stats.workersInProcess} icon={<UserCircle />} gradient="from-blue-600 to-indigo-600" onClick={() => onNavigate('worker')} />
         <AdminStatCard title="Staff" value={stats.totalEmployees} icon={<Contact />} gradient="from-indigo-600 to-purple-600" onClick={() => onNavigate('employee-list')} />
@@ -275,10 +344,10 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard title="Sub Agents" value={stats.activeSubAgents} icon={<Users />} gradient="from-slate-700 to-slate-900" onClick={() => onNavigate('subagent')} />
       </div>
 
-      {/* TOP SECTION: ADD NOTES & LISTS */}
+      {/* TOP: ADD FORM + REMINDERS + LOGS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
 
-        {/* ADD NOTE FORM & REMINDERS (Left) */}
+        {/* LEFT: Quick Add + Reminders */}
         <div className="lg:col-span-5 space-y-8">
           <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
             <h2 className="text-xl font-black mb-6 flex items-center gap-3">
@@ -300,6 +369,10 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                   <option value="general">General Note</option>
                   <option value="reminder">Reminder</option>
                   <option value="urgent">Urgent</option>
+                  <option value="worker">Worker</option>
+                  <option value="employer">Employer</option>
+                  <option value="job-demand">Job Demand</option>
+                  <option value="sub-agent">Sub Agent</option>
                 </select>
                 <input
                   type="date"
@@ -309,18 +382,33 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 />
               </div>
 
-              {/* Employee dropdown for admin to link a note to an employee */}
+              {/* Linked entity select (shows workers, employers, demands, subagents + staff) */}
               <select
                 className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
-                value={newNote.linkedEmployeeId}
-                onChange={(e) => setNewNote({ ...newNote, linkedEmployeeId: e.target.value })}
+                value={newNote.linkedEntityId}
+                onChange={(e) => setNewNote({ ...newNote, linkedEntityId: e.target.value })}
               >
-                <option value="">Link to employee (optional)</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.fullName || emp.name} — {emp.employeeCode || emp.email || 'N/A'}
-                  </option>
-                ))}
+                <option value="">Link to entity (optional)</option>
+
+                <optgroup label="Workers">
+                  {workers.map(w => <option key={w._id} value={w._id}>{w.name} — {w.passportNumber || 'N/A'}</option>)}
+                </optgroup>
+
+                <optgroup label="Employers">
+                  {employers.map(em => <option key={em._id} value={em._id}>{em.employerName} — {em.country || 'N/A'}</option>)}
+                </optgroup>
+
+                <optgroup label="Job Demands">
+                  {demands.map(d => <option key={d._id} value={d._id}>{d.jobTitle}</option>)}
+                </optgroup>
+
+                <optgroup label="Sub Agents">
+                  {subAgents.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                </optgroup>
+
+                <optgroup label="Staff">
+                  {employees.map(emp => <option key={emp._id} value={emp._id}>{emp.fullName || emp.name}</option>)}
+                </optgroup>
               </select>
 
               <input
@@ -349,26 +437,26 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 {showArchived ? 'Active' : 'Archive'}
               </button>
             </div>
+
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {(showArchived ? archivedReminders : activeReminders).map(rem => {
                 const days = getDaysRemaining(rem.targetDate);
                 const bs = convertADtoBS(rem.targetDate);
-                const adDate = new Date(rem.targetDate);
-                const adMonth = adDate.toLocaleString('en-US', { month: 'short' });
-                const linkedEmployee = rem.linkedEntityId ? employeesMap[rem.linkedEntityId] : null;
+                const adDate = rem.targetDate ? new Date(rem.targetDate) : null;
+                const adMonth = adDate ? adDate.toLocaleString('en-US', { month: 'short' }) : '';
+                const linkedLabel = getLinkedLabel(rem);
                 return (
                   <div key={rem._id} className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-red-600 flex gap-5 hover:shadow-md transition-all">
                     <div className="flex flex-col items-center justify-center w-16 h-16 bg-red-50 rounded-2xl shrink-0 border border-red-100">
                       <span className="text-xs font-black text-red-600 uppercase mb-1">{isBS ? bs.month : adMonth}</span>
-                      <span className="text-2xl font-black text-red-700">{isBS ? bs.day : adDate.getDate()}</span>
+                      <span className="text-2xl font-black text-red-700">{isBS ? bs.day : (adDate ? adDate.getDate() : '')}</span>
                     </div>
+
                     <div className="flex-1">
                       <p className="text-md font-bold text-slate-900 leading-snug">{rem.content}</p>
 
-                      {linkedEmployee && (
-                        <div className="text-sm text-slate-500 mt-2">
-                          Linked employee: <span className="font-bold text-slate-700">{linkedEmployee.fullName || linkedEmployee.name}</span>
-                        </div>
+                      {linkedLabel && (
+                        <div className="text-sm text-slate-500 mt-2">Linked: <span className="font-bold text-slate-700">{linkedLabel}</span></div>
                       )}
 
                       <div className="mt-4 flex items-center gap-4">
@@ -376,12 +464,15 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                           {days === 0 ? 'TODAY' : days < 0 ? 'OVERDUE' : `${days} DAYS LEFT`}
                         </Badge>
 
-                        {/* if there is an attachment, show paperclip */}
                         {rem.attachment && (
-                          <a href={`${FILE_BASE}/${rem.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 ml-2">
+                          <a href={`${FILE_BASE}${rem.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 ml-2">
                             <Paperclip size={16} />
                           </a>
                         )}
+
+                        <button onClick={() => markDone(rem._id)} className="ml-auto p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100">
+                          <CheckCircle size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -391,7 +482,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           </div>
         </div>
 
-        {/* LOGS (Right) */}
+        {/* RIGHT: Logs */}
         <div className="lg:col-span-7 space-y-6">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-xl font-black flex items-center gap-3">
@@ -419,7 +510,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
               <p className="text-center text-slate-400 py-12 col-span-2">No notes yet</p>
             ) : (
               filteredNotes.map(note => {
-                const linkedEmployee = note.linkedEntityId ? employeesMap[note.linkedEntityId] : null;
+                const linkedLabel = getLinkedLabel(note);
                 const canEdit = isEditable(note);
 
                 return (
@@ -430,9 +521,8 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                           {note.category}
                         </Badge>
 
-                        {/* show attachment icon */}
                         {note.attachment && (
-                          <a href={`${FILE_BASE}/${note.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100">
+                          <a href={`${FILE_BASE}${note.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100">
                             <Paperclip size={16} />
                           </a>
                         )}
@@ -440,9 +530,9 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
                       <p className="text-md text-slate-700 font-bold leading-relaxed line-clamp-4">{note.content}</p>
 
-                      {linkedEmployee && (
+                      {linkedLabel && (
                         <div className="text-sm text-slate-500 mt-2">
-                          Linked: <span className="font-bold text-slate-700">{linkedEmployee.fullName || linkedEmployee.name}</span>
+                          Linked: <span className="font-bold text-slate-700">{linkedLabel}</span>
                         </div>
                       )}
 
@@ -451,7 +541,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
                     <div className="mt-6 pt-4 border-t border-slate-50 flex justify-between items-center">
                       <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {/* Only allow admin CRUD on notes that are editable by admin */}
                         {canEdit ? (
                           <>
                             <button onClick={() => handleEdit(note)} className="text-slate-400 hover:text-indigo-600">
@@ -462,7 +551,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                             </button>
                           </>
                         ) : (
-                          // read-only icon set (no edit/delete)
                           <div className="text-sm text-slate-400 px-3 py-1 rounded-md">Read-only</div>
                         )}
                       </div>
@@ -477,7 +565,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </div>
       </div>
 
-      {/* BOTTOM SECTION: CHARTS */}
+      {/* BOTTOM: CHARTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-10 border-t border-slate-200">
         <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
           <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
@@ -513,7 +601,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
                 <Tooltip cursor={{ fill: '#f8fafc' }} />
-                <Bar dataKey="count" fill="#1e293b" radius={[10, 10, 0, 0]} barSize={50} />
+                <ReBar dataKey="count" fill="#1e293b" radius={[10, 10, 0, 0]} barSize={50} />
               </BarChart>
             </ResponsiveContainer>
           </div>
