@@ -12,10 +12,11 @@ const UserSchema = new mongoose.Schema({
     },
     email: {
         type: String,
-        unique: true,
-        sparse: true,
+        required: false,
         lowercase: true,
         trim: true,
+        // Removed unique: true
+        index: true, // Speeds up login lookups without forcing uniqueness
         match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please provide a valid email'],
     },
     password: {
@@ -29,17 +30,21 @@ const UserSchema = new mongoose.Schema({
         enum: ['super_admin', 'admin', 'employee'],
         default: 'employee',
     },
-    contactNumber: { type: String, required: [true, 'Contact number required'] },
+    contactNumber: {
+        type: String,
+        required: [true, 'Contact number required'],
+        unique: true, // Phone remains the unique key
+        trim: true
+    },
     address: { type: String, required: [true, 'Address required'] },
     companyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Company',
         required: function () { return this.role !== 'super_admin'; },
     },
-    // Reset Password Fields
     passwordResetToken: String,
     passwordResetExpires: Date,
-    otpReference: String,       // A small code to show on screen like "Ref: AX-12"
+    otpReference: String,
 }, { timestamps: true });
 
 UserSchema.pre('save', async function () {
