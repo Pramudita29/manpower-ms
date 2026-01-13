@@ -34,7 +34,8 @@ import { Card, CardContent } from "../ui/Card";
  * - Priority threshold: daysLeft <= 2
  * - Urgent toast deduped with fixed id, re-shown on each visit when urgent > 0
  * - Reminders UI: no entity dropdowns (as requested)
- * - Notes (non-reminder) keep entity dropdowns
+ * - Fixed: formatStatValue to avoid rendering objects/arrays directly (prevents "Objects are not valid as a React child")
+ * - Fixed: robust linked entity label handling (handles linkedEntityId being an object or id string)
  */
 
 /* ----------------------------- Constants -------------------------------- */
@@ -95,6 +96,22 @@ function toNepaliShort(dateStrOrDate) {
 function authHeaders() {
     const token = localStorage.getItem("token") || "";
     return { Authorization: `Bearer ${token}` };
+}
+
+// Format stat values so we never render objects/arrays directly.
+// - numbers/strings returned as-is
+// - arrays => length
+// - objects => try `.count` or `.total` or fallback to '--'
+function formatStatValue(v) {
+    if (v === null || v === undefined) return "—";
+    if (typeof v === "number" || typeof v === "string") return v;
+    if (Array.isArray(v)) return v.length;
+    if (typeof v === "object") {
+        if (typeof v.count === "number") return v.count;
+        if (typeof v.total === "number") return v.total;
+        return "—";
+    }
+    return "—";
 }
 
 /* ----------------------------- Clock ------------------------------------ */
@@ -436,7 +453,10 @@ function useDashboard() {
                 setForm("reminder");
             } else {
                 setCategory(n.category || "general");
-                setEntity(n.linkedEntityId || "");
+                // normalize linked entity to string id if an object was returned
+                const rawLinked = n.linkedEntityId;
+                const linkedId = rawLinked && typeof rawLinked === "object" ? (rawLinked._id || rawLinked.id || "") : (rawLinked || "");
+                setEntity(linkedId);
                 setForm("note");
             }
             setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
@@ -478,6 +498,7 @@ function useDashboard() {
         openForm,
         fetchData,
         entityOpts: ["worker", "employer", "job-demand", "sub-agent"],
+        formatStatValue,
     };
 }
 
@@ -514,6 +535,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         resetForm,
         openForm,
         entityOpts,
+        formatStatValue,
     } = useDashboard();
 
     // Build quick lookup maps for linked entity labels (O(1) lookup)
@@ -544,32 +566,56 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
     const getLinkedLabel = useCallback(
         (note) => {
             if (!note?.linkedEntityId) return null;
-            const id = note.linkedEntityId;
+            const raw = note.linkedEntityId;
+
+            // Helper: try to build a label from an object
+            const buildFromObj = (obj) => {
+                if (!obj || typeof obj !== "object") return null;
+                if (obj.employerName) return `${obj.employerName}${obj.country ? ` • ${obj.country}` : ""}`;
+                if (obj.name && obj.passportNumber) return `${obj.name}${obj.passportNumber ? ` • ${obj.passportNumber}` : ""}`;
+                if (obj.jobTitle) return obj.jobTitle;
+                if (obj.name) return obj.name;
+                return null;
+            };
+
+            const isObj = typeof raw === "object";
+            const id = isObj ? (raw._id || raw.id || null) : raw;
+
+            // If raw is an object and we can build a friendly label, return it
+            if (isObj) {
+                const lbl = buildFromObj(raw);
+                if (lbl) return lbl;
+            }
 
             switch (note.category) {
                 case "worker": {
-                    const w = workersMap[id];
-                    return w ? `${w.name}${w.passportNumber ? ` • ${w.passportNumber}` : ""}` : id;
+                    const w = id ? workersMap[id] : null;
+                    if (w) return `${w.name}${w.passportNumber ? ` • ${w.passportNumber}` : ""}`;
+                    // fallback to raw object
+                    return buildFromObj(raw) || (id || String(raw));
                 }
                 case "employer": {
-                    const e = employersMap[id];
-                    return e ? `${e.employerName}${e.country ? ` • ${e.country}` : ""}` : id;
+                    const e = id ? employersMap[id] : null;
+                    if (e) return `${e.employerName}${e.country ? ` • ${e.country}` : ""}`;
+                    return buildFromObj(raw) || (id || String(raw));
                 }
                 case "job-demand": {
-                    const d = demandsMap[id];
-                    return d ? d.jobTitle : id;
+                    const d = id ? demandsMap[id] : null;
+                    if (d) return d.jobTitle;
+                    return buildFromObj(raw) || (id || String(raw));
                 }
                 case "sub-agent": {
-                    const s = subAgentsMap[id];
-                    return s ? s.name : id;
+                    const s = id ? subAgentsMap[id] : null;
+                    if (s) return s.name;
+                    return buildFromObj(raw) || (id || String(raw));
                 }
                 default:
-                    // fallback: try detecting from dropdowns
                     if (workersMap[id]) return `${workersMap[id].name}${workersMap[id].passportNumber ? ` • ${workersMap[id].passportNumber}` : ""}`;
                     if (employersMap[id]) return `${employersMap[id].employerName}${employersMap[id].country ? ` • ${employersMap[id].country}` : ""}`;
                     if (demandsMap[id]) return demandsMap[id].jobTitle;
                     if (subAgentsMap[id]) return subAgentsMap[id].name;
-                    return id;
+                    // Last fallback: try to build label from raw object, otherwise stringified id
+                    return buildFromObj(raw) || (id || String(raw));
             }
         },
         [workersMap, employersMap, demandsMap, subAgentsMap]
@@ -582,6 +628,16 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
             </div>
         );
     }
+
+    // Prepare stats safely for rendering
+    const statCards = [
+        { t: "Employers", v: stats.employersAdded, i: <Building2 size={28} />, g: "from-blue-600 to-indigo-600", n: "employer" },
+        { t: "Job Demands", v: stats.activeJobDemands, i: <Briefcase size={28} />, g: "from-purple-600 to-indigo-600", n: "job-demand" },
+        { t: "Workers", v: stats.workersInProcess, i: <Users size={28} />, g: "from-emerald-600 to-teal-600", n: "worker" },
+        // show backend stat if present, otherwise fallback to urgentCount so you can see priority tasks immediately
+        { t: "Priority Tasks", v: stats.tasksNeedingAttention ?? urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
+        { t: "Sub Agents", v: stats.activeSubAgents, i: <UserCircle size={28} />, g: "from-slate-700 to-slate-900", n: "subagent" },
+    ];
 
     return (
         <>
@@ -637,15 +693,15 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
 
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {[
-                        { t: "Employers", v: stats.employersAdded, i: <Building2 size={28} />, g: "from-blue-600 to-indigo-600", n: "employer" },
-                        { t: "Job Demands", v: stats.activeJobDemands, i: <Briefcase size={28} />, g: "from-purple-600 to-indigo-600", n: "job-demand" },
-                        { t: "Workers", v: stats.workersInProcess, i: <Users size={28} />, g: "from-emerald-600 to-teal-600", n: "worker" },
-                        // show backend stat if present, otherwise fallback to urgentCount so you can see priority tasks immediately
-                        { t: "Priority Tasks", v: stats.tasksNeedingAttention ?? urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
-                        { t: "Sub Agents", v: stats.activeSubAgents, i: <UserCircle size={28} />, g: "from-slate-700 to-slate-900", n: "subagent" },
-                    ].map((p) => (
-                        <StatCard key={p.t} title={p.t} value={p.v} icon={p.i} gradient={p.g} onClick={p.n ? () => onNavigate(p.n) : undefined} />
+                    {statCards.map((p) => (
+                        <StatCard
+                            key={p.t}
+                            title={p.t}
+                            value={formatStatValue(p.v)}
+                            icon={p.i}
+                            gradient={p.g}
+                            onClick={p.n ? () => onNavigate(p.n) : undefined}
+                        />
                     ))}
                 </div>
 
