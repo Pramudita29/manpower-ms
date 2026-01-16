@@ -1,6 +1,9 @@
-"use client"
+"use client";
+
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LoginPage } from '../../../components/LoginPage';
 
 const API_URL = 'http://localhost:5000/api/auth/login';
@@ -8,48 +11,43 @@ const API_URL = 'http://localhost:5000/api/auth/login';
 export default function Login() {
     const router = useRouter();
 
+    useEffect(() => {
+        router.prefetch('/dashboard/tenant-admin');
+        router.prefetch('/dashboard/employee');
+    }, [router]);
+
     const handleLogin = async (identifier, password, selectedRole) => {
         try {
             const response = await axios.post(API_URL, { identifier, password });
-
-            // Destructure the data from the response
             const { token, user } = response.data;
 
-            // 1. Role Validation: Handle super_admin as admin for UI matching
             const actualRole = user.role === 'super_admin' ? 'admin' : user.role;
 
             if (actualRole !== selectedRole) {
                 const roleDisplay = selectedRole === 'admin' ? 'Administrator' : 'Employee';
-                throw new Error(`Access Denied: This account is not authorized for the ${roleDisplay} portal.`);
+                throw new Error(`Access Denied: Not authorized for the ${roleDisplay} portal.`);
             }
 
-            // 2. Persist Data
-            // We save the token and the individual pieces, but critically, 
-            // we save the whole 'user' object for the Sidebar to consume.
+            // --- STORAGE SYNC ---
             localStorage.setItem('token', token);
-            localStorage.setItem('userRole', user.role);
-            localStorage.setItem('user', JSON.stringify(user)); // THIS IS THE KEY FIX
+            localStorage.setItem('userId', user._id);
+            localStorage.setItem('role', actualRole); // Key: 'role'
+            localStorage.setItem('fullName', user.fullName); // Save name for dashboard
+            localStorage.setItem('user', JSON.stringify(user));
 
-            // 3. Redirection Logic
-            if (user.role === 'super_admin') {
-                router.push('/dashboard/super-admin');
-            } else if (user.role === 'admin') {
-                router.push('/dashboard/tenant-admin');
-            } else {
-                router.push('/dashboard/employee');
-            }
+            // Set Cookies for Server-side/Middleware compatibility
+            Cookies.set('token', token, { expires: 7, path: '/' });
+            Cookies.set('role', actualRole, { expires: 7, path: '/' });
 
-            // Return data so the LoginPage can show the "Welcome" toast
+            const targetPath = actualRole === 'admin' ? '/dashboard/tenant-admin' : '/dashboard/employee';
+
+            console.log('✅ LOGIN SUCCESS: Navigating to', targetPath);
+            router.push(targetPath);
+
             return response.data;
-
         } catch (error) {
-            let errorMessage = 'Login failed. Please check your credentials.';
-            if (error.response?.data?.msg) {
-                errorMessage = error.response.data.msg;
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-            throw new Error(errorMessage);
+            console.error('❌ LOGIN ATTEMPT FAILED:', error.message);
+            throw error;
         }
     };
 

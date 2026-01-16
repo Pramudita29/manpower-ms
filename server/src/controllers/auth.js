@@ -166,6 +166,7 @@ const login = async (req, res) => {
         res.status(StatusCodes.OK).json({
             success: true,
             user: {
+                _id: user._id,
                 fullName: user.fullName,
                 role: user.role,
                 companyId: user.companyId,
@@ -179,13 +180,17 @@ const login = async (req, res) => {
     }
 };
 
-// 4. FORGOT PASSWORD
+
+// 1. UPDATE FORGOT PASSWORD
 const forgotPassword = async (req, res) => {
     try {
         const cleanId = normalizeIdentifier(req.body.identifier);
         const user = await User.findOne({ $or: [{ email: cleanId }, { contactNumber: cleanId }] });
 
-        if (!user) return res.status(StatusCodes.OK).json({ msg: 'OTP sent if account exists.' });
+        // BUG FIX: Change this from 200 to 404
+        if (!user) {
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Account not found with this email/phone.' });
+        }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpRef = crypto.randomBytes(2).toString('hex').toUpperCase();
@@ -204,21 +209,69 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-// 5. RESEND OTP
+// 2. UPDATE RESEND OTP
 const resendOTP = async (req, res) => {
-    const cleanId = normalizeIdentifier(req.body.identifier);
-    const user = await User.findOne({ $or: [{ email: cleanId }, { contactNumber: cleanId }] });
-    if (!user) return res.status(StatusCodes.OK).json({ msg: 'OTP resent.' });
+    try {
+        const { identifier } = req.body;
+        if (!identifier) {
+            return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Identifier is required.' });
+        }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.passwordResetToken = crypto.createHash('sha256').update(otp).digest('hex');
-    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
+        const cleanId = normalizeIdentifier(identifier);
+        const user = await User.findOne({
+            $or: [{ email: cleanId }, { contactNumber: cleanId }]
+        });
 
-    await sendNepaliSMS(user.contactNumber, `New OTP: ${otp}`);
-    res.status(StatusCodes.OK).json({ success: true });
+        // FIX: Reject if user doesn't exist
+        if (!user) {
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Account not found.' });
+        }
+
+        // Generate New OTP and Reference
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpRef = crypto.randomBytes(2).toString('hex').toUpperCase();
+
+        // Update Database (Using SHA256 to match resetPassword logic)
+        user.passwordResetToken = crypto.createHash('sha256').update(otp).digest('hex');
+        user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+        user.otpReference = otpRef;
+        await user.save();
+
+        // --- DUAL SENDING LOGIC ---
+
+        // 1. Send SMS (Primary)
+        const smsPromise = sendNepaliSMS(user.contactNumber, `Your new OTP is ${otp}. Ref: ${otpRef}`);
+
+        // 2. Send Email (If user has one)
+        let emailPromise = Promise.resolve();
+        if (user.email) {
+            emailPromise = sendEmail({
+                to: user.email,
+                subject: 'Your Password Reset OTP',
+                html: `
+                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
+                        <h2>Password Reset Request</h2>
+                        <p>Your new OTP code is: <strong style="font-size: 20px; color: #2563eb;">${otp}</strong></p>
+                        <p>Reference: ${otpRef}</p>
+                        <p>This code will expire in 10 minutes.</p>
+                    </div>
+                `
+            });
+        }
+
+        // Wait for both to process
+        await Promise.all([smsPromise, emailPromise]);
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            msg: user.email ? 'OTP sent to Email and SMS.' : 'OTP sent via SMS.'
+        });
+
+    } catch (err) {
+        console.error("Resend Error:", err);
+        res.status(500).json({ msg: 'Failed to send OTP. Please try again later.' });
+    }
 };
-
 // 6. RESET PASSWORD
 const resetPassword = async (req, res) => {
     const { identifier, otp, newPassword } = req.body;

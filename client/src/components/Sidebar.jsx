@@ -36,8 +36,8 @@ export function Sidebar({ onLogout }) {
 
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-        { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
+        { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
@@ -108,8 +108,8 @@ export function Sidebar({ onLogout }) {
                             key={link.path}
                             href={link.path}
                             className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                                    : 'text-gray-500 hover:bg-gray-50'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                : 'text-gray-500 hover:bg-gray-50'
                                 }`}
                         >
                             <Icon size={19} className={isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'} />

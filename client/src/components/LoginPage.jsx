@@ -50,6 +50,7 @@ export function LoginPage({ onLogin }) {
   const [view, setView] = useState('login');
   const [role, setRole] = useState('employee');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
@@ -117,15 +118,28 @@ export function LoginPage({ onLogin }) {
   };
 
   const handleResendOTP = async () => {
-    if (resendTimer > 0) return;
+    if (resendTimer > 0 || isResending) return;
+
+    setIsResending(true);
     const finalId = formatIdentifier(identifier);
     const tid = toast.loading('Resending OTP...');
+
     try {
-      await axios.post('http://localhost:5000/api/auth/resend-otp', { identifier: finalId });
-      toast.success('New OTP sent!', { id: tid });
-      setResendTimer(60);
+      const response = await axios.post('http://localhost:5000/api/auth/resend-otp', {
+        identifier: finalId
+      });
+
+      if (response.data.success) {
+        toast.success('New OTP sent!', { id: tid });
+        setResendTimer(60);
+        setError('');
+      }
     } catch (err) {
-      toast.error(err.response?.data?.msg || 'Failed to resend', { id: tid });
+      const msg = err.response?.data?.msg || 'Failed to resend';
+      toast.error(msg, { id: tid });
+      setError(msg);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -188,9 +202,14 @@ export function LoginPage({ onLogin }) {
                   <motion.div key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                     <div className="space-y-1">
                       <StyledInput label="Enter OTP" placeholder="6-digit code" icon={Smartphone} value={otp} onChange={(e) => setOtp(e.target.value)} required />
-                      <button type="button" disabled={resendTimer > 0} onClick={handleResendOTP} className={`text-[11px] font-bold uppercase tracking-tighter ml-auto flex items-center gap-1 ${resendTimer > 0 ? 'text-slate-400' : 'text-blue-600 hover:text-blue-800'}`}>
-                        <RefreshCw size={10} className={resendTimer > 0 ? '' : 'animate-spin-slow'} />
-                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                      <button
+                        type="button"
+                        disabled={resendTimer > 0 || isResending}
+                        onClick={handleResendOTP}
+                        className={`text-[11px] font-bold uppercase tracking-tighter ml-auto flex items-center gap-1 transition-colors ${resendTimer > 0 || isResending ? 'text-slate-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}`}
+                      >
+                        <RefreshCw size={10} className={resendTimer > 0 || isResending ? '' : 'animate-spin-slow'} />
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : isResending ? 'Sending...' : 'Resend OTP'}
                       </button>
                     </div>
                     <StyledInput label="New Password" isPassword placeholder="••••••••" icon={Key} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
