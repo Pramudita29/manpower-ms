@@ -12,6 +12,11 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
+import {
+  Area, AreaChart, BarChart, CartesianGrid,
+  Bar as ReBar,
+  ResponsiveContainer, Tooltip, XAxis, YAxis
+} from 'recharts';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
@@ -98,11 +103,11 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         setAllData(res.data.data.notes || []);
         setDropdowns(res.data.data.dropdowns || {});
         setChartData([
-          { name: 'Workers', count: s.workersInProcess },
-          { name: 'Staff', count: s.totalEmployees },
-          { name: 'Employers', count: s.employersAdded },
-          { name: 'Demands', count: s.activeJobDemands },
-          { name: 'Agents', count: s.activeSubAgents },
+          { name: 'Workers', count: s.workersInProcess || 0 },
+          { name: 'Staff', count: s.totalEmployees || 0 },
+          { name: 'Employers', count: s.employersAdded || 0 },
+          { name: 'Demands', count: s.activeJobDemands || 0 },
+          { name: 'Agents', count: s.activeSubAgents || 0 },
         ]);
       }
     } catch (err) {
@@ -325,7 +330,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Left - Quick Add + Reminders */}
         <div className="lg:col-span-5 space-y-8">
-          {/* Quick Add */}
+          {/* Quick Add Form */}
           <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
             <h2 className="text-xl font-black mb-6 flex items-center gap-3">
               {editId ? <Edit className="text-indigo-600" /> : <Plus className="text-indigo-600" />}
@@ -439,14 +444,9 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
                       <div className="mt-4 flex items-center gap-4">
                         <Badge
-                          className={`text-xs font-black ${days <= 1 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'
-                            }`}
+                          className={`text-xs font-black ${days <= 1 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'}`}
                         >
-                          {days === 0
-                            ? 'TODAY'
-                            : days < 0
-                              ? 'OVERDUE'
-                              : `${days} DAYS LEFT`}
+                          {days === 0 ? 'TODAY' : days < 0 ? 'OVERDUE' : `${days} DAYS LEFT`}
                         </Badge>
 
                         <div className="ml-auto flex gap-2">
@@ -514,15 +514,15 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 <div
                   key={note._id}
                   className={`p-6 rounded-3xl border-2 transition-all ${isOwnNote
-                      ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
-                      : 'bg-white border-slate-100 shadow-sm'
+                    ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
+                    : 'bg-white border-slate-100 shadow-sm'
                     }`}
                 >
                   <div className="flex justify-between items-start mb-4">
                     <Badge
                       className={`${note.category === 'urgent'
-                          ? 'bg-red-100 text-red-600'
-                          : 'bg-slate-100 text-slate-600'
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-slate-100 text-slate-600'
                         } border-none text-[10px] font-black uppercase px-3 py-1`}
                     >
                       {note.category}
@@ -547,8 +547,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                   <div className="flex items-center gap-2.5 mb-4">
                     <div className={`w-2.5 h-2.5 rounded-full ${isOwnNote ? 'bg-indigo-500' : 'bg-slate-300'}`} />
                     <span
-                      className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'
-                        }`}
+                      className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'}`}
                     >
                       BY {isOwnNote ? "ME" : (note.createdBy?.fullName || 'Unknown')}
                     </span>
@@ -584,6 +583,49 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Charts Section – Restored from original */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-10 border-t border-slate-200">
+        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
+          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-indigo-600" /> System Growth
+          </h3>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <Tooltip />
+                <Area type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={4} fill="url(#colorCount)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
+          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-slate-900" /> Entity Distribution
+          </h3>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <Tooltip cursor={{ fill: '#f8fafc' }} />
+                <ReBar dataKey="count" fill="#1e293b" radius={[10, 10, 0, 0]} barSize={50} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       </div>
 
       <style jsx global>{`

@@ -1,9 +1,10 @@
 "use client";
 
+import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-// Changed to named import - this fixes the "undefined" error in most cases
+// Components
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import EmployeeDashboard from '../../../components/Employee/EmployeeDashboard';
 
@@ -13,12 +14,22 @@ export default function EmployeePage() {
     const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
+        // 1. Get auth data from localStorage
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
+        const role = localStorage.getItem('role'); // FIXED: Changed from 'userRole' to 'role'
         const fullName = localStorage.getItem('fullName');
 
+        // 2. DEBUGGER: Check console if navigation fails
+        console.group("Employee Auth Debugger");
+        console.log("Token Present:", !!token);
+        console.log("Role Found:", role);
+        console.log("Full Name:", fullName);
+        console.groupEnd();
+
+        // 3. Security Check: Must have token AND be an employee
         if (!token || role !== 'employee') {
-            router.push('/login');
+            console.error("⛔ AUTH DENIED: Redirecting to /login", { tokenExist: !!token, role });
+            router.replace('/login');
             return;
         }
 
@@ -45,14 +56,23 @@ export default function EmployeePage() {
     };
 
     const handleLogout = () => {
+        // Clear all storage
         localStorage.clear();
+
+        // Clear cookies for server-side consistency
+        Cookies.remove('token', { path: '/' });
+        Cookies.remove('role', { path: '/' });
+
         router.push('/login');
     };
 
     if (!isReady) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <p className="text-gray-500 animate-pulse">Verifying Session...</p>
+            <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                    <p className="text-slate-500 font-medium animate-pulse">Verifying Session...</p>
+                </div>
             </div>
         );
     }

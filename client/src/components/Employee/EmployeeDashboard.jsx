@@ -4,22 +4,24 @@ import adbs from "ad-bs-converter";
 import axios from "axios";
 import {
     AlertCircle,
+    AtSign,
     Bell,
     Briefcase,
     Building2,
     CheckCircle,
     Clock as ClockIcon,
+    X as CloseIcon,
     Edit,
     FilePlus,
     FileText,
     Paperclip,
     Plus,
     RefreshCw,
+    ShieldCheck,
     Trash2,
     UserCircle,
     UserPlus,
     Users,
-    X as CloseIcon,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast, Toaster } from "react-hot-toast";
@@ -28,35 +30,10 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card, CardContent } from "../ui/Card";
 
-/**
- * Employee Dashboard (updated)
- * - Detects reminders by presence of `targetDate` (matches your Reminder model)
- * - Priority threshold: daysLeft <= 2
- * - Urgent toast deduped with fixed id, re-shown on each visit when urgent > 0
- * - Reminders UI: no entity dropdowns (as requested)
- * - Fixed: formatStatValue to avoid rendering objects/arrays directly (prevents "Objects are not valid as a React child")
- * - Fixed: robust linked entity label handling (handles linkedEntityId being an object or id string)
- */
-
-/* ----------------------------- Constants -------------------------------- */
-
 const API_BASE = "http://localhost:5000/api/dashboard";
 const FILE_BASE = "http://localhost:5000";
 
-const NEPALI_MONTHS = [
-    "Baisakh",
-    "Jestha",
-    "Ashadh",
-    "Shrawan",
-    "Bhadra",
-    "Ashoj",
-    "Kartik",
-    "Mangsir",
-    "Poush",
-    "Magh",
-    "Falgun",
-    "Chaitra",
-];
+const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
 
 const URGENT_TOAST_STYLE = {
     background: "#fff7f7",
@@ -71,10 +48,7 @@ const URGENT_TOAST_STYLE = {
 
 const URGENT_TOAST_ID = "urgent-reminders";
 
-/* ----------------------------- Helpers ---------------------------------- */
-
-const getNepalTime = () =>
-    new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
+const getNepalTime = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
 
 function toNepaliShort(dateStrOrDate) {
     if (!dateStrOrDate) return { month: "N/A", day: "" };
@@ -86,10 +60,7 @@ function toNepaliShort(dateStrOrDate) {
             day: c.en.day,
         };
     } catch {
-        return {
-            month: d.toLocaleString("en-US", { month: "short" }),
-            day: d.getDate(),
-        };
+        return { month: d.toLocaleString("en-US", { month: "short" }), day: d.getDate() };
     }
 }
 
@@ -98,10 +69,6 @@ function authHeaders() {
     return { Authorization: `Bearer ${token}` };
 }
 
-// Format stat values so we never render objects/arrays directly.
-// - numbers/strings returned as-is
-// - arrays => length
-// - objects => try `.count` or `.total` or fallback to '--'
 function formatStatValue(v) {
     if (v === null || v === undefined) return "—";
     if (typeof v === "number" || typeof v === "string") return v;
@@ -113,8 +80,6 @@ function formatStatValue(v) {
     }
     return "—";
 }
-
-/* ----------------------------- Clock ------------------------------------ */
 
 const Clock = memo(function Clock() {
     const [time, setTime] = useState(getNepalTime());
@@ -129,14 +94,9 @@ const Clock = memo(function Clock() {
     );
 });
 
-/* ----------------------------- StatCard --------------------------------- */
-
 const StatCard = memo(function StatCard({ title, value, icon, gradient, onClick }) {
     return (
-        <Card
-            onClick={onClick}
-            className="overflow-hidden border-none shadow-lg hover:shadow-2xl transition-all cursor-pointer group"
-        >
+        <Card onClick={onClick} className="overflow-hidden border-none shadow-lg hover:shadow-2xl transition-all cursor-pointer group">
             <div className={`h-1.5 w-full bg-gradient-to-r ${gradient}`} />
             <CardContent className="p-6 flex items-center justify-between">
                 <div>
@@ -151,16 +111,35 @@ const StatCard = memo(function StatCard({ title, value, icon, gradient, onClick 
     );
 });
 
-/* -------------------------- ReminderItem -------------------------------- */
-
-const ReminderItem = memo(function ReminderItem({ rem, isBS, markDone, editNote, deleteNote, linkedLabel }) {
+const ReminderItem = memo(function ReminderItem({
+    rem,
+    isBS,
+    markDone,
+    editNote,
+    deleteNote,
+    linkedLabel,
+    isTagged,
+    creatorDisplay,
+    isAdminPosted,
+    isOwn,
+}) {
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
         const diffMs = new Date(targetDate) - getNepalTime();
         return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     }, []);
 
-    const getDateDisplay = useCallback((targetDate) => {
+    const d = daysLeft(rem.targetDate);
+    const isOver = d < 0;
+    const isToday = d === 0;
+    const isSoon = d > 0 && d <= 2;
+
+    const border = isOver ? "border-red-600" : isToday ? "border-red-500" : isSoon ? "border-orange-500" : "border-blue-400";
+    const bg = isOver ? "bg-rose-50/70" : isToday ? "bg-red-50/60" : isSoon ? "bg-orange-50/50" : isTagged ? "bg-indigo-50/40" : "";
+
+    const badge = isOver ? "bg-red-600 text-white" : isToday ? "bg-red-500 text-white" : isSoon ? "bg-orange-500 text-white" : isTagged ? "bg-indigo-500 text-white" : "bg-blue-100 text-blue-700";
+
+    const dateDisplay = useCallback((targetDate) => {
         if (!targetDate) return { month: "N/A", day: "" };
         const d = new Date(targetDate);
         try {
@@ -174,75 +153,75 @@ const ReminderItem = memo(function ReminderItem({ rem, isBS, markDone, editNote,
         }
     }, []);
 
-    const d = daysLeft(rem.targetDate);
-    const isOver = d < 0;
-    const isToday = d === 0;
-    // Priority threshold: 2 days or less
-    const isSoon = d > 0 && d <= 2;
-
-    const border = isOver ? "border-red-600" : isToday ? "border-red-500" : isSoon ? "border-orange-500" : "border-blue-400";
-    const bg = isOver ? "bg-rose-50/70" : isToday ? "bg-red-50/60" : isSoon ? "bg-orange-50/50" : "";
-    const badge = isOver ? "bg-red-600 text-white" : isToday ? "bg-red-500 text-white" : isSoon ? "bg-orange-500 text-white" : "bg-blue-100 text-blue-700";
-    const anim = isOver ? "animate-pulse-fast text-red-600" : isToday ? "animate-pulse text-red-500" : isSoon ? "animate-pulse-slow text-orange-600" : "text-blue-500";
-    const prio = isOver ? "OVERDUE" : isToday ? "TODAY" : isSoon ? `${d} days left` : `${d} days`;
-    const dateDisplay = getDateDisplay(rem.targetDate);
-
     return (
         <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-8 flex gap-5 hover:shadow-md transition-all group ${border} ${bg}`}>
             <div className="flex flex-col items-center justify-center w-16 h-16 bg-white rounded-2xl shrink-0 border shadow-sm">
                 <span className="text-xs font-black text-slate-600 uppercase mb-1">
-                    {isBS ? dateDisplay.month : new Date(rem.targetDate).toLocaleString("en-US", { month: "short" })}
+                    {isBS ? dateDisplay(rem.targetDate).month : new Date(rem.targetDate).toLocaleString("en-US", { month: "short" })}
                 </span>
                 <span className="text-2xl font-black text-slate-800">
-                    {isBS ? dateDisplay.day : new Date(rem.targetDate).getDate()}
+                    {isBS ? dateDisplay(rem.targetDate).day : new Date(rem.targetDate).getDate()}
                 </span>
             </div>
 
             <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                    <Bell size={20} className={`shrink-0 ${anim}`} />
+                    <Bell size={20} className={`shrink-0 ${isOver ? "animate-pulse-fast text-red-600" : isToday ? "animate-pulse text-red-500" : isSoon ? "animate-pulse-slow text-orange-600" : ""}`} />
                     <p className="text-md font-bold text-slate-900 leading-snug flex-1">{rem.content}</p>
                 </div>
 
                 {linkedLabel && (
-                    <div className="text-sm text-slate-500 mb-2">Linked: <span className="font-bold text-slate-700">{linkedLabel}</span></div>
+                    <div className="text-sm text-slate-500 mb-1">
+                        Linked: <span className="font-bold text-slate-700">{linkedLabel}</span>
+                    </div>
                 )}
 
-                <div className="flex items-center justify-between flex-wrap gap-2">
+                {/* Creator display */}
+                <div className="text-xs text-slate-500 mt-2 flex items-center flex-wrap gap-2">
+                    <span>Posted by: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
+                    {isAdminPosted && (
+                        <Badge className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
+                            <ShieldCheck size={12} /> Admin
+                        </Badge>
+                    )}
+                </div>
+
+                {isTagged && (
+                    <Badge className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 mt-2">
+                        <AtSign size={12} className="inline mr-1" /> You are tagged
+                    </Badge>
+                )}
+
+                <div className="flex items-center justify-between flex-wrap gap-2 mt-3">
                     <div className="flex items-center gap-2">
-                        <Badge className={`text-xs font-black px-3 py-1 border-none ${badge}`}>{prio}</Badge>
-                        {rem.isCompleted && (
-                            <Badge className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1">DONE</Badge>
-                        )}
+                        <Badge className={`text-xs font-black px-3 py-1 border-none ${badge}`}>
+                            {isOver ? "OVERDUE" : isToday ? "TODAY" : isSoon ? `${d} days left` : `${d} days`}
+                        </Badge>
+                        {rem.isCompleted && <Badge className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1">DONE</Badge>}
                     </div>
 
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         {!rem.isCompleted && (
-                            <button
-                                onClick={() => markDone(rem._id)}
-                                className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
-                                title="Mark as Done"
-                            >
+                            <button onClick={() => markDone(rem._id)} className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors" title="Mark as Done">
                                 <CheckCircle size={18} />
                             </button>
                         )}
-                        <button onClick={() => editNote(rem)} className="p-1.5 hover:text-indigo-600">
-                            <Edit size={16} />
-                        </button>
-                        <button onClick={() => deleteNote(rem._id)} className="p-1.5 hover:text-rose-600">
-                            <Trash2 size={16} />
-                        </button>
+                        {isOwn && (
+                            <>
+                                <button onClick={() => editNote(rem)} className="p-1.5 hover:text-indigo-600">
+                                    <Edit size={16} />
+                                </button>
+                                <button onClick={() => deleteNote(rem._id)} className="p-1.5 hover:text-rose-600">
+                                    <Trash2 size={16} />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
         </div>
     );
 });
-
-/* --------------------------- useDashboard --------------------------------
-   Encapsulates fetching, saving, deleting, state for the dashboard.
-   Reminders detected by presence of targetDate (matches your Reminder model).
-*/
 
 function useDashboard() {
     const [isBS, setIsBS] = useState(false);
@@ -252,15 +231,20 @@ function useDashboard() {
     const [dropdowns, setDropdowns] = useState({});
     const [loading, setLoading] = useState(true);
 
+    const currentUserId = typeof window !== "undefined" ? localStorage.getItem("userId")?.trim() : null;
+
     const [form, setForm] = useState(null);
     const [editId, setEditId] = useState(null);
     const [content, setContent] = useState("");
-    const [category, setCategory] = useState("general"); // for non-reminder notes
+    const [category, setCategory] = useState("general");
     const [date, setDate] = useState("");
     const [file, setFile] = useState(null);
     const [entity, setEntity] = useState("");
 
     const [urgentCount, setUrgentCount] = useState(0);
+
+    const [reminderFilter, setReminderFilter] = useState('all');
+    const [logFilter, setLogFilter] = useState('all');
 
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
@@ -271,7 +255,6 @@ function useDashboard() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // backend should return reminders and notes together under API_BASE
             const res = await axios.get(API_BASE, { headers: authHeaders() });
             if (res.data?.success) {
                 setStats(res.data.data.stats || {});
@@ -292,8 +275,6 @@ function useDashboard() {
     useEffect(() => {
         if (loading || !notes.length) return;
 
-        // Identify reminders by presence of targetDate (your Reminder model uses targetDate)
-        // urgent: daysLeft <= 2 and not completed
         const urgent = notes.reduce((count, n) => {
             if (!n.targetDate || n.isCompleted) return count;
             const d = daysLeft(n.targetDate);
@@ -304,36 +285,22 @@ function useDashboard() {
 
         if (urgent > 0) {
             const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
-
             toast(
                 (t) => (
                     <div className="flex items-center gap-3 w-full">
                         <div className="flex items-center justify-center rounded-full bg-red-50 p-2">
                             <AlertCircle className="text-red-600" size={18} />
                         </div>
-
                         <div className="flex-1 ml-2">
                             <div className="text-sm font-extrabold text-[#7f1d1d]">{msg}</div>
-                            <div className="text-xs text-[#9b1f1f] mt-0.5">Check your reminders panel for details</div>
+                            <div className="text-xs text-[#9b1f1f] mt-0.5">Check your reminders panel</div>
                         </div>
-
-                        <button
-                            onClick={() => {
-                                toast.dismiss(t.id);
-                            }}
-                            className="ml-3 p-1.5 rounded-full hover:bg-slate-100"
-                            aria-label="Close urgent reminder"
-                        >
+                        <button onClick={() => toast.dismiss(t.id)} className="ml-3 p-1.5 rounded-full hover:bg-slate-100">
                             <CloseIcon size={16} className="text-slate-600" />
                         </button>
                     </div>
                 ),
-                {
-                    id: URGENT_TOAST_ID,
-                    duration: Infinity,
-                    position: "top-center",
-                    style: URGENT_TOAST_STYLE,
-                }
+                { id: URGENT_TOAST_ID, duration: Infinity, position: "top-center", style: URGENT_TOAST_STYLE }
             );
         } else {
             toast.dismiss(URGENT_TOAST_ID);
@@ -341,29 +308,43 @@ function useDashboard() {
     }, [notes, loading, daysLeft]);
 
     const sortedReminders = useMemo(() => {
-        // Reminders are items that have a targetDate
         const allReminders = notes.filter((n) => n.targetDate);
-        const active = allReminders.filter((n) => !n.isCompleted && (daysLeft(n.targetDate) ?? 999) >= 0);
-        const archived = allReminders.filter((n) => n.isCompleted || (daysLeft(n.targetDate) ?? 999) < 0);
-        const displayed = showArchived ? archived : active;
-        return [...displayed].sort((a, b) => (daysLeft(a.targetDate) ?? 9999) - (daysLeft(b.targetDate) ?? 9999));
-    }, [notes, showArchived, daysLeft]);
+        let filtered = allReminders;
 
-    const logs = useMemo(() => notes.filter((n) => !n.targetDate), [notes]); // non-reminder notes
+        if (reminderFilter === 'my') {
+            filtered = filtered.filter((n) => String(n.createdBy?._id || n.createdBy) === String(currentUserId));
+        } else if (reminderFilter === 'tagged') {
+            filtered = filtered.filter((n) => String(n.linkedEntityId?._id || n.linkedEntityId) === String(currentUserId));
+        }
 
-    const markDone = useCallback(
-        async (id) => {
-            if (!window.confirm("Mark this reminder as done?")) return;
-            try {
-                await axios.patch(`${API_BASE}/notes/${id}/done`, {}, { headers: authHeaders() });
-                toast.success("Marked as done!");
-                await fetchData();
-            } catch {
-                toast.error("Could not update status");
-            }
-        },
-        [fetchData]
-    );
+        const active = filtered.filter((n) => !n.isCompleted && (daysLeft(n.targetDate) ?? 999) >= 0);
+        const archived = filtered.filter((n) => n.isCompleted || (daysLeft(n.targetDate) ?? 999) < 0);
+
+        return (showArchived ? archived : active).sort((a, b) => (daysLeft(a.targetDate) ?? 9999) - (daysLeft(b.targetDate) ?? 9999));
+    }, [notes, showArchived, daysLeft, reminderFilter, currentUserId]);
+
+    const logs = useMemo(() => {
+        let filtered = notes.filter((n) => !n.targetDate);
+
+        if (logFilter === 'my') {
+            filtered = filtered.filter((n) => String(n.createdBy?._id || n.createdBy) === String(currentUserId));
+        } else if (logFilter === 'tagged') {
+            filtered = filtered.filter((n) => String(n.linkedEntityId?._id || n.linkedEntityId) === String(currentUserId));
+        }
+
+        return filtered;
+    }, [notes, logFilter, currentUserId]);
+
+    const markDone = useCallback(async (id) => {
+        if (!window.confirm("Mark this reminder as done?")) return;
+        try {
+            await axios.patch(`${API_BASE}/notes/${id}/done`, {}, { headers: authHeaders() });
+            toast.success("Marked as done!");
+            await fetchData();
+        } catch {
+            toast.error("Could not update status");
+        }
+    }, [fetchData]);
 
     const resetForm = useCallback(() => {
         setContent("");
@@ -379,34 +360,15 @@ function useDashboard() {
         if (!content.trim()) return toast.error("Content is required");
         const fd = new FormData();
         fd.append("content", content);
-
-        // If the form is the reminder form (form === 'reminder'), we send category based on backend contract.
-        // Since your Reminder model's category expects values from enum ['general','employer','worker','job-demand','sub-agent'],
-        // we will not send 'reminder' as category. If backend wants a different payload for reminders (e.g., POST /api/reminders),
-        // change this area as needed. For now, when creating a reminder we will send category = 'general' (or keep category as-is).
-        if (form === "reminder") {
-            // Use 'general' for reminder.category unless you want something else
-            fd.append("category", "general");
-        } else {
-            fd.append("category", category);
-        }
-
+        fd.append("category", category);
         if (date) fd.append("targetDate", date);
         if (file) fd.append("attachment", file);
-
-        // Non-reminder notes: allow linking
-        if (entity && form !== "reminder") {
+        if (entity) {
             fd.append("linkedEntityId", entity);
-            fd.append("linkedEntityType", category);
         }
 
         try {
-            const config = {
-                headers: {
-                    ...authHeaders(),
-                    "Content-Type": "multipart/form-data",
-                },
-            };
+            const config = { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } };
             if (editId) {
                 await axios.patch(`${API_BASE}/notes/${editId}`, fd, config);
             } else {
@@ -418,51 +380,67 @@ function useDashboard() {
         } catch {
             toast.error("Failed to save");
         }
-    }, [content, category, date, file, entity, form, editId, fetchData, resetForm]);
+    }, [content, category, date, file, entity, editId, fetchData, resetForm]);
 
-    const deleteNote = useCallback(
-        async (id) => {
-            if (!window.confirm("Delete permanently?")) return;
-            try {
-                await axios.delete(`${API_BASE}/notes/${id}`, { headers: authHeaders() });
-                toast.success("Deleted");
-                fetchData();
-            } catch {
-                toast.error("Delete failed");
-            }
-        },
-        [fetchData]
-    );
+    const deleteNote = useCallback(async (id) => {
+        if (!window.confirm("Delete permanently?")) return;
+        try {
+            await axios.delete(`${API_BASE}/notes/${id}`, { headers: authHeaders() });
+            toast.success("Deleted");
+            fetchData();
+        } catch {
+            toast.error("Delete failed");
+        }
+    }, [fetchData]);
 
     const openForm = useCallback((type) => {
         setForm(type);
-        // for reminders we mark form === 'reminder' but do not show link dropdowns
-        setCategory(type === "reminder" ? "reminder" : "general");
+        setCategory(type === "reminder" ? "general" : "general");
         setEntity("");
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, []);
 
-    const editNote = useCallback(
-        (n) => {
-            setEditId(n._id);
-            setContent(n.content || "");
-            // Identify reminder by targetDate
-            if (n.targetDate) {
-                setCategory("reminder");
-                setEntity(""); // per request, no entity dropdowns on reminder edit
-                setForm("reminder");
-            } else {
-                setCategory(n.category || "general");
-                // normalize linked entity to string id if an object was returned
-                const rawLinked = n.linkedEntityId;
-                const linkedId = rawLinked && typeof rawLinked === "object" ? (rawLinked._id || rawLinked.id || "") : (rawLinked || "");
-                setEntity(linkedId);
-                setForm("note");
-            }
-            setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
-        },
-        []
-    );
+    const editNote = useCallback((n) => {
+        setEditId(n._id);
+        setContent(n.content || "");
+        if (n.targetDate) {
+            setCategory("general");
+            setForm("reminder");
+        } else {
+            setCategory(n.category || "general");
+            setForm("note");
+        }
+        setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
+
+        // Safe handling for linkedEntityId (fix for null/undefined)
+        const rawLinked = n.linkedEntityId;
+        const linkedId = rawLinked && typeof rawLinked === "object" ? (rawLinked._id || "") : (rawLinked || "");
+        setEntity(linkedId);
+    }, []);
+
+    const isEmployeeTagged = useCallback((note) => {
+        if (!currentUserId || !note?.linkedEntityId) return false;
+        const linkedId = typeof note.linkedEntityId === "object" ? note.linkedEntityId._id : note.linkedEntityId;
+        return String(linkedId).trim() === String(currentUserId).trim();
+    }, [currentUserId]);
+
+    const getCreatorInfo = useCallback((note) => {
+        if (!note?.createdBy) return { display: "Unknown", isAdmin: false };
+
+        const creator = note.createdBy;
+        const isOwn = String(creator._id || creator) === String(currentUserId);
+        const name = creator.fullName || "Unknown User";
+        const display = isOwn ? "ME" : name;
+        const isAdmin = creator.role === "admin" || creator.role === "super_admin";
+
+        return { display, isAdmin };
+    }, [currentUserId]);
+
+    const isOwnItem = useCallback((item) => {
+        if (!currentUserId || !item?.createdBy) return false;
+        const creatorId = item.createdBy?._id || item.createdBy;
+        return String(creatorId).trim() === String(currentUserId).trim();
+    }, [currentUserId]);
 
     return {
         isBS,
@@ -474,7 +452,6 @@ function useDashboard() {
         dropdowns,
         loading,
         form,
-        setForm,
         editId,
         content,
         setContent,
@@ -497,12 +474,17 @@ function useDashboard() {
         resetForm,
         openForm,
         fetchData,
-        entityOpts: ["worker", "employer", "job-demand", "sub-agent"],
+        currentUserId,
         formatStatValue,
+        isEmployeeTagged,
+        getCreatorInfo,
+        reminderFilter,
+        setReminderFilter,
+        logFilter,
+        setLogFilter,
+        isOwnItem,
     };
 }
-
-/* ------------------------- Main Component -------------------------------- */
 
 export default function EmployeeDashboard({ onNavigate = () => { } }) {
     const {
@@ -534,11 +516,18 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         editNote,
         resetForm,
         openForm,
-        entityOpts,
+        fetchData,
+        currentUserId,
         formatStatValue,
+        isEmployeeTagged,
+        getCreatorInfo,
+        reminderFilter,
+        setReminderFilter,
+        logFilter,
+        setLogFilter,
+        isOwnItem,
     } = useDashboard();
 
-    // Build quick lookup maps for linked entity labels (O(1) lookup)
     const workersMap = useMemo(() => {
         const m = {};
         (dropdowns.workers || []).forEach((w) => (m[w._id] = w));
@@ -563,63 +552,18 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         return m;
     }, [dropdowns]);
 
-    const getLinkedLabel = useCallback(
-        (note) => {
-            if (!note?.linkedEntityId) return null;
-            const raw = note.linkedEntityId;
+    const getLinkedLabel = useCallback((note) => {
+        if (!note?.linkedEntityId) return null;
+        const raw = note.linkedEntityId;
+        const id = typeof raw === "object" ? raw._id || "" : raw || "";
 
-            // Helper: try to build a label from an object
-            const buildFromObj = (obj) => {
-                if (!obj || typeof obj !== "object") return null;
-                if (obj.employerName) return `${obj.employerName}${obj.country ? ` • ${obj.country}` : ""}`;
-                if (obj.name && obj.passportNumber) return `${obj.name}${obj.passportNumber ? ` • ${obj.passportNumber}` : ""}`;
-                if (obj.jobTitle) return obj.jobTitle;
-                if (obj.name) return obj.name;
-                return null;
-            };
+        if (note.category === "worker") return workersMap[id]?.name || "Worker";
+        if (note.category === "employer") return employersMap[id]?.employerName || "Employer";
+        if (note.category === "job-demand") return demandsMap[id]?.jobTitle || "Job Demand";
+        if (note.category === "sub-agent") return subAgentsMap[id]?.name || "Sub Agent";
 
-            const isObj = typeof raw === "object";
-            const id = isObj ? (raw._id || raw.id || null) : raw;
-
-            // If raw is an object and we can build a friendly label, return it
-            if (isObj) {
-                const lbl = buildFromObj(raw);
-                if (lbl) return lbl;
-            }
-
-            switch (note.category) {
-                case "worker": {
-                    const w = id ? workersMap[id] : null;
-                    if (w) return `${w.name}${w.passportNumber ? ` • ${w.passportNumber}` : ""}`;
-                    // fallback to raw object
-                    return buildFromObj(raw) || (id || String(raw));
-                }
-                case "employer": {
-                    const e = id ? employersMap[id] : null;
-                    if (e) return `${e.employerName}${e.country ? ` • ${e.country}` : ""}`;
-                    return buildFromObj(raw) || (id || String(raw));
-                }
-                case "job-demand": {
-                    const d = id ? demandsMap[id] : null;
-                    if (d) return d.jobTitle;
-                    return buildFromObj(raw) || (id || String(raw));
-                }
-                case "sub-agent": {
-                    const s = id ? subAgentsMap[id] : null;
-                    if (s) return s.name;
-                    return buildFromObj(raw) || (id || String(raw));
-                }
-                default:
-                    if (workersMap[id]) return `${workersMap[id].name}${workersMap[id].passportNumber ? ` • ${workersMap[id].passportNumber}` : ""}`;
-                    if (employersMap[id]) return `${employersMap[id].employerName}${employersMap[id].country ? ` • ${employersMap[id].country}` : ""}`;
-                    if (demandsMap[id]) return demandsMap[id].jobTitle;
-                    if (subAgentsMap[id]) return subAgentsMap[id].name;
-                    // Last fallback: try to build label from raw object, otherwise stringified id
-                    return buildFromObj(raw) || (id || String(raw));
-            }
-        },
-        [workersMap, employersMap, demandsMap, subAgentsMap]
-    );
+        return typeof raw === "object" ? raw.name || raw.employerName || raw.jobTitle || "Entity" : "Entity";
+    }, [workersMap, employersMap, demandsMap, subAgentsMap]);
 
     if (loading) {
         return (
@@ -629,13 +573,11 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         );
     }
 
-    // Prepare stats safely for rendering
     const statCards = [
         { t: "Employers", v: stats.employersAdded, i: <Building2 size={28} />, g: "from-blue-600 to-indigo-600", n: "employer" },
         { t: "Job Demands", v: stats.activeJobDemands, i: <Briefcase size={28} />, g: "from-purple-600 to-indigo-600", n: "job-demand" },
         { t: "Workers", v: stats.workersInProcess, i: <Users size={28} />, g: "from-emerald-600 to-teal-600", n: "worker" },
-        // show backend stat if present, otherwise fallback to urgentCount so you can see priority tasks immediately
-        { t: "Priority Tasks", v: stats.tasksNeedingAttention ?? urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
+        { t: "Priority Tasks", v: urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
         { t: "Sub Agents", v: stats.activeSubAgents, i: <UserCircle size={28} />, g: "from-slate-700 to-slate-900", n: "subagent" },
     ];
 
@@ -711,8 +653,8 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                         {form && (
                             <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
                                 <h2 className="text-xl font-black mb-6 flex items-center gap-3">
-                                    {form && form === "reminder" ? <Bell className="text-rose-600" /> : <FileText className="text-indigo-600" />}
-                                    {form && form === "reminder" ? "New Reminder" : "New Note"}
+                                    {form === "reminder" ? <Bell className="text-rose-600" /> : <FileText className="text-indigo-600" />}
+                                    {form === "reminder" ? "New Reminder" : "New Note"}
                                 </h2>
                                 <div className="space-y-5">
                                     <textarea
@@ -742,38 +684,14 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                         />
                                     </div>
 
-                                    {/* Reminder form: per request, no category/entity dropdowns shown here */}
-                                    {form !== "reminder" && entityOpts.includes(category) && (
+                                    {form !== "reminder" && (
                                         <select
                                             className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
                                             value={entity}
                                             onChange={(e) => setEntity(e.target.value)}
                                         >
-                                            <option value="">Select {category.replace("-", " ")}</option>
-                                            {category === "worker" &&
-                                                (dropdowns.workers || []).map((i) => (
-                                                    <option key={i._id} value={i._id}>
-                                                        {i.name} - {i.passportNumber || "N/A"}
-                                                    </option>
-                                                ))}
-                                            {category === "employer" &&
-                                                (dropdowns.employers || []).map((i) => (
-                                                    <option key={i._id} value={i._id}>
-                                                        {i.employerName} - {i.country || "N/A"}
-                                                    </option>
-                                                ))}
-                                            {category === "job-demand" &&
-                                                (dropdowns.demands || []).map((i) => (
-                                                    <option key={i._id} value={i._id}>
-                                                        {i.jobTitle}
-                                                    </option>
-                                                ))}
-                                            {category === "sub-agent" &&
-                                                (dropdowns.subAgents || []).map((i) => (
-                                                    <option key={i._id} value={i._id}>
-                                                        {i.name}
-                                                    </option>
-                                                ))}
+                                            <option value="">Select entity (optional)</option>
+                                            {/* Populate options similar to admin side */}
                                         </select>
                                     )}
 
@@ -809,58 +727,94 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                     </div>
                                     Reminders
                                 </h2>
-                                <button
-                                    onClick={() => setShowArchived(!showArchived)}
-                                    className="text-xs font-black px-4 py-2 rounded-xl border bg-white text-slate-500 uppercase tracking-widest hover:bg-slate-50"
+
+                                <select
+                                    className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
+                                    value={reminderFilter}
+                                    onChange={(e) => setReminderFilter(e.target.value)}
                                 >
-                                    {showArchived ? "Active" : "Archive"}
-                                </button>
+                                    <option value="all">Show All</option>
+                                    <option value="my">My Reminders</option>
+                                    <option value="tagged">Tagged for Me</option>
+                                </select>
                             </div>
 
                             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 custom-scrollbar">
                                 {sortedReminders.length === 0 ? (
                                     <p className="text-center text-slate-400 py-8">No {showArchived ? "archived" : "active"} reminders</p>
                                 ) : (
-                                    sortedReminders.map((rem) => (
-                                        <ReminderItem
-                                            key={rem._id}
-                                            rem={rem}
-                                            isBS={isBS}
-                                            markDone={markDone}
-                                            editNote={editNote}
-                                            deleteNote={deleteNote}
-                                            linkedLabel={getLinkedLabel(rem)}
-                                        />
-                                    ))
+                                    sortedReminders.map((rem) => {
+                                        const { display: creatorDisplay, isAdmin: isAdminPosted } = getCreatorInfo(rem);
+                                        const isOwn = isOwnItem(rem);
+                                        return (
+                                            <ReminderItem
+                                                key={rem._id}
+                                                rem={rem}
+                                                isBS={isBS}
+                                                markDone={markDone}
+                                                editNote={editNote}
+                                                deleteNote={deleteNote}
+                                                linkedLabel={getLinkedLabel(rem)}
+                                                isTagged={isEmployeeTagged(rem)}
+                                                creatorDisplay={creatorDisplay}
+                                                isAdminPosted={isAdminPosted}
+                                                isOwn={isOwn}
+                                            />
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Right Column - Logs */}
+                    {/* Operational Logs */}
                     <div className="lg:col-span-7 space-y-6">
-                        <h2 className="text-xl font-black flex items-center gap-3 px-2">
-                            <FileText size={24} className="text-indigo-600" /> Operational Logs
-                        </h2>
+                        <div className="flex items-center justify-between px-2">
+                            <h2 className="text-xl font-black flex items-center gap-3">
+                                <FileText size={24} className="text-indigo-600" /> Operational Logs
+                            </h2>
+
+                            <select
+                                className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
+                                value={logFilter}
+                                onChange={(e) => setLogFilter(e.target.value)}
+                            >
+                                <option value="all">Show All</option>
+                                <option value="my">My Notes</option>
+                                <option value="tagged">Tagged for Me</option>
+                            </select>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[860px] overflow-y-auto pr-2 custom-scrollbar">
                             {logs.length === 0 ? (
                                 <p className="text-center text-slate-400 py-12 col-span-2">No notes yet</p>
                             ) : (
                                 logs.map((note) => {
-                                    const linkedLabel = getLinkedLabel(note);
+                                    const { display: creatorDisplay, isAdmin: isAdminPosted } = getCreatorInfo(note);
+                                    const isOwn = isOwnItem(note);
                                     return (
                                         <div
                                             key={note._id}
-                                            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors group"
+                                            className={`bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors group ${isEmployeeTagged(note) ? "bg-indigo-50/40 border-indigo-200" : ""}`}
                                         >
+                                            {isEmployeeTagged(note) && (
+                                                <Badge className="self-start mb-3 bg-indigo-500 text-white text-xs font-bold px-3 py-1">
+                                                    <AtSign size={12} className="inline mr-1" /> You are tagged
+                                                </Badge>
+                                            )}
+
                                             <div>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <Badge className="bg-slate-100 text-slate-600 border-none text-[10px] font-black uppercase px-3 py-1">
                                                         {note.category}
                                                     </Badge>
                                                     {note.attachment && (
-                                                        <a href={`${FILE_BASE}/${note.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100">
+                                                        <a
+                                                            href={`${FILE_BASE}/${note.attachment}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"
+                                                        >
                                                             <Paperclip size={16} />
                                                         </a>
                                                     )}
@@ -868,23 +822,39 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
 
                                                 <p className="text-md text-slate-700 font-bold leading-relaxed line-clamp-4">{note.content}</p>
 
-                                                {linkedLabel && (
+                                                {getLinkedLabel(note) && (
                                                     <div className="text-sm text-slate-500 mt-2">
-                                                        Linked: <span className="font-bold text-slate-700">{linkedLabel}</span>
+                                                        Linked: <span className="font-bold text-slate-700">{getLinkedLabel(note)}</span>
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-sm">
+                                            {/* Creator display */}
+                                            <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center flex-wrap gap-2">
+                                                <span>Posted by: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
+                                                {isAdminPosted && (
+                                                    <Badge className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
+                                                        <ShieldCheck size={12} /> Admin
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-4 flex justify-between items-center text-sm">
                                                 <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => editNote(note)} className="text-slate-400 hover:text-indigo-600">
-                                                        <Edit size={16} />
-                                                    </button>
-                                                    <button onClick={() => deleteNote(note._id)} className="text-slate-400 hover:text-rose-600">
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                                    {isOwn && (
+                                                        <>
+                                                            <button onClick={() => editNote(note)} className="text-slate-400 hover:text-indigo-600">
+                                                                <Edit size={16} />
+                                                            </button>
+                                                            <button onClick={() => deleteNote(note._id)} className="text-slate-400 hover:text-rose-600">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
-                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(note.createdAt).toLocaleDateString()}</span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                    {new Date(note.createdAt).toLocaleDateString()}
+                                                </span>
                                             </div>
                                         </div>
                                     );
