@@ -28,12 +28,15 @@ import { toast, Toaster } from "react-hot-toast";
 
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { Card, CardContent } from "../ui/Card";
+import { Card } from "../ui/Card";
 
 const API_BASE = "http://localhost:5000/api/dashboard";
 const FILE_BASE = "http://localhost:5000";
 
-const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+const NEPALI_MONTHS = [
+    "Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj",
+    "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"
+];
 
 const URGENT_TOAST_STYLE = {
     background: "#fff7f7",
@@ -94,20 +97,32 @@ const Clock = memo(function Clock() {
     );
 });
 
-const StatCard = memo(function StatCard({ title, value, icon, gradient, onClick }) {
+const StatCard = memo(function StatCard({ title, value, icon, gradient, path, onNavigate }) {
+    const isClickable = !!path && typeof onNavigate === "function";
+
     return (
-        <Card onClick={onClick} className="overflow-hidden border-none shadow-lg hover:shadow-2xl transition-all cursor-pointer group">
+        <div
+            onClick={() => isClickable && onNavigate(path)}
+            className={`relative z-50 overflow-hidden rounded-xl shadow-lg transition-all duration-300 bg-white border border-slate-100 
+        ${isClickable ? "cursor-pointer hover:shadow-2xl hover:-translate-y-1 active:scale-[0.98] group" : "cursor-default"}`}
+        >
             <div className={`h-1.5 w-full bg-gradient-to-r ${gradient}`} />
-            <CardContent className="p-6 flex items-center justify-between">
+
+            {isClickable && (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            )}
+
+            <div className="p-6 flex items-center justify-between">
                 <div>
                     <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{title}</p>
-                    <p className="text-3xl font-black text-slate-900 mt-2">{value ?? "—"}</p>
+                    <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{value ?? "—"}</p>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-100 text-slate-700 group-hover:scale-110 transition-transform">
+
+                <div className={`p-4 rounded-2xl bg-slate-100 text-slate-700 transition-all duration-300 ${isClickable ? "group-hover:scale-110" : ""}`}>
                     {icon}
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 });
 
@@ -122,6 +137,7 @@ const ReminderItem = memo(function ReminderItem({
     creatorDisplay,
     isAdminPosted,
     isOwn,
+    showArchived,
 }) {
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
@@ -176,7 +192,6 @@ const ReminderItem = memo(function ReminderItem({
                     </div>
                 )}
 
-                {/* Creator display */}
                 <div className="text-xs text-slate-500 mt-2 flex items-center flex-wrap gap-2">
                     <span>Posted by: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
                     {isAdminPosted && (
@@ -201,8 +216,12 @@ const ReminderItem = memo(function ReminderItem({
                     </div>
 
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {!rem.isCompleted && (
-                            <button onClick={() => markDone(rem._id)} className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors" title="Mark as Done">
+                        {!showArchived && !rem.isCompleted && (
+                            <button
+                                onClick={() => markDone(rem._id)}
+                                className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                                title="Mark as Done"
+                            >
                                 <CheckCircle size={18} />
                             </button>
                         )}
@@ -283,7 +302,8 @@ function useDashboard() {
 
         setUrgentCount(urgent);
 
-        if (urgent > 0) {
+        // Only show urgent toast if still authenticated
+        if (urgent > 0 && localStorage.getItem("token")) {
             const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
             toast(
                 (t) => (
@@ -305,6 +325,11 @@ function useDashboard() {
         } else {
             toast.dismiss(URGENT_TOAST_ID);
         }
+
+        // Cleanup toast on unmount / logout
+        return () => {
+            toast.dismiss(URGENT_TOAST_ID);
+        };
     }, [notes, loading, daysLeft]);
 
     const sortedReminders = useMemo(() => {
@@ -412,7 +437,6 @@ function useDashboard() {
         }
         setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
 
-        // Safe handling for linkedEntityId (fix for null/undefined)
         const rawLinked = n.linkedEntityId;
         const linkedId = rawLinked && typeof rawLinked === "object" ? (rawLinked._id || "") : (rawLinked || "");
         setEntity(linkedId);
@@ -486,7 +510,7 @@ function useDashboard() {
     };
 }
 
-export default function EmployeeDashboard({ onNavigate = () => { } }) {
+export default function EmployeeDashboard({ navigateTo = () => { } }) {
     const {
         isBS,
         setIsBS,
@@ -574,11 +598,40 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
     }
 
     const statCards = [
-        { t: "Employers", v: stats.employersAdded, i: <Building2 size={28} />, g: "from-blue-600 to-indigo-600", n: "employer" },
-        { t: "Job Demands", v: stats.activeJobDemands, i: <Briefcase size={28} />, g: "from-purple-600 to-indigo-600", n: "job-demand" },
-        { t: "Workers", v: stats.workersInProcess, i: <Users size={28} />, g: "from-emerald-600 to-teal-600", n: "worker" },
-        { t: "Priority Tasks", v: urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
-        { t: "Sub Agents", v: stats.activeSubAgents, i: <UserCircle size={28} />, g: "from-slate-700 to-slate-900", n: "subagent" },
+        {
+            title: "Employers",
+            value: formatStatValue(stats.employersAdded),
+            icon: <Building2 size={28} />,
+            gradient: "from-blue-600 to-indigo-600",
+            path: "employer",
+        },
+        {
+            title: "Job Demands",
+            value: formatStatValue(stats.activeJobDemands),
+            icon: <Briefcase size={28} />,
+            gradient: "from-purple-600 to-indigo-600",
+            path: "job-demand",
+        },
+        {
+            title: "Workers",
+            value: formatStatValue(stats.workersInProcess),
+            icon: <Users size={28} />,
+            gradient: "from-emerald-600 to-teal-600",
+            path: "worker",
+        },
+        {
+            title: "Priority Tasks",
+            value: urgentCount,
+            icon: <AlertCircle size={28} />,
+            gradient: "from-orange-500 to-rose-600",
+        },
+        {
+            title: "Sub Agents",
+            value: formatStatValue(stats.activeSubAgents),
+            icon: <UserCircle size={28} />,
+            gradient: "from-slate-700 to-slate-900",
+            path: "subagent",
+        },
     ];
 
     return (
@@ -635,14 +688,15 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
 
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {statCards.map((p) => (
+                    {statCards.map((stat) => (
                         <StatCard
-                            key={p.t}
-                            title={p.t}
-                            value={formatStatValue(p.v)}
-                            icon={p.i}
-                            gradient={p.g}
-                            onClick={p.n ? () => onNavigate(p.n) : undefined}
+                            key={stat.title}
+                            title={stat.title}
+                            value={stat.value}
+                            icon={stat.icon}
+                            gradient={stat.gradient}
+                            path={stat.path}
+                            onNavigate={navigateTo}
                         />
                     ))}
                 </div>
@@ -691,7 +745,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                             onChange={(e) => setEntity(e.target.value)}
                                         >
                                             <option value="">Select entity (optional)</option>
-                                            {/* Populate options similar to admin side */}
+                                            {/* Populate options according to your actual entities */}
                                         </select>
                                     )}
 
@@ -713,20 +767,37 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                             </Card>
                         )}
 
-                        {/* Reminders */}
+                        {/* Reminders Section */}
                         <div className="space-y-6">
-                            <div className="flex items-center justify-between px-2">
-                                <h2 className="text-xl font-black flex items-center gap-3 relative">
-                                    <div className="relative">
-                                        <Bell size={24} className="text-rose-600" />
-                                        {urgentCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-sm">
-                                                {urgentCount > 9 ? "9+" : urgentCount}
-                                            </span>
-                                        )}
+                            <div className="flex items-center justify-between px-2 flex-wrap gap-4">
+                                <div className="flex items-center gap-4">
+                                    <h2 className="text-xl font-black flex items-center gap-3 relative">
+                                        <div className="relative">
+                                            <Bell size={24} className="text-rose-600" />
+                                            {urgentCount > 0 && (
+                                                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-sm">
+                                                    {urgentCount > 9 ? "9+" : urgentCount}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {showArchived ? "Archived Reminders" : "Reminders"}
+                                    </h2>
+
+                                    <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-medium">
+                                        <button
+                                            onClick={() => setShowArchived(false)}
+                                            className={`px-4 py-1.5 rounded-lg transition-all ${!showArchived ? "bg-white shadow-sm font-bold" : "text-slate-600"}`}
+                                        >
+                                            Active
+                                        </button>
+                                        <button
+                                            onClick={() => setShowArchived(true)}
+                                            className={`px-4 py-1.5 rounded-lg transition-all ${showArchived ? "bg-white shadow-sm font-bold" : "text-slate-600"}`}
+                                        >
+                                            Archived
+                                        </button>
                                     </div>
-                                    Reminders
-                                </h2>
+                                </div>
 
                                 <select
                                     className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
@@ -741,7 +812,9 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
 
                             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 custom-scrollbar">
                                 {sortedReminders.length === 0 ? (
-                                    <p className="text-center text-slate-400 py-8">No {showArchived ? "archived" : "active"} reminders</p>
+                                    <p className="text-center text-slate-400 py-8">
+                                        No {showArchived ? "archived" : "active"} reminders
+                                    </p>
                                 ) : (
                                     sortedReminders.map((rem) => {
                                         const { display: creatorDisplay, isAdmin: isAdminPosted } = getCreatorInfo(rem);
@@ -759,6 +832,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                                 creatorDisplay={creatorDisplay}
                                                 isAdminPosted={isAdminPosted}
                                                 isOwn={isOwn}
+                                                showArchived={showArchived}
                                             />
                                         );
                                     })
@@ -792,6 +866,15 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                 logs.map((note) => {
                                     const { display: creatorDisplay, isAdmin: isAdminPosted } = getCreatorInfo(note);
                                     const isOwn = isOwnItem(note);
+
+                                    const logDate = isBS
+                                        ? `${toNepaliShort(note.createdAt).month} ${toNepaliShort(note.createdAt).day}`
+                                        : new Date(note.createdAt).toLocaleDateString("en-US", {
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                        });
+
                                     return (
                                         <div
                                             key={note._id}
@@ -829,7 +912,6 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                                 )}
                                             </div>
 
-                                            {/* Creator display */}
                                             <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center flex-wrap gap-2">
                                                 <span>Posted by: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
                                                 {isAdminPosted && (
@@ -853,7 +935,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                                     )}
                                                 </div>
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                                    {new Date(note.createdAt).toLocaleDateString()}
+                                                    {logDate}
                                                 </span>
                                             </div>
                                         </div>
@@ -880,7 +962,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                         ].map((x) => (
                             <button
                                 key={x.t}
-                                onClick={() => onNavigate(x.to)}
+                                onClick={() => navigateTo(x.to)}
                                 className={`flex flex-col p-7 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group text-left`}
                             >
                                 <div className={`w-14 h-14 rounded-2xl bg-${x.c}-100 text-${x.c}-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
