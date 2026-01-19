@@ -16,7 +16,7 @@ export default function EmployeePage() {
     useEffect(() => {
         // 1. Get auth data from localStorage
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role'); // FIXED: Changed from 'userRole' to 'role'
+        const role = localStorage.getItem('role'); 
         const fullName = localStorage.getItem('fullName');
 
         // 2. DEBUGGER: Check console if navigation fails
@@ -37,9 +37,15 @@ export default function EmployeePage() {
         setIsReady(true);
     }, [router]);
 
+    /**
+     * UPDATED: handleNavigation
+     * This receives the 'workers' string from your ReportsPage
+     * and maps it to the correct Next.js route.
+     */
     const handleNavigation = (path) => {
         if (!path) return;
 
+        // Handle direct paths or queries
         if (path.startsWith('/') || path.includes('?')) {
             router.push(path);
             return;
@@ -47,22 +53,27 @@ export default function EmployeePage() {
 
         let targetPath = '/dashboard/employee';
 
-        if (path.includes('employer')) targetPath = '/dashboard/employee/employer';
-        else if (path.includes('job-demand')) targetPath = '/dashboard/employee/job-demand';
-        else if (path.includes('worker')) targetPath = '/dashboard/employee/worker';
-        else if (path.includes('subagent') || path.includes('sub-agent')) targetPath = '/dashboard/employee/subagent';
+        // Mapping logic
+        if (path.includes('employer')) {
+            targetPath = '/dashboard/employee/employer';
+        } else if (path.includes('job-demand')) {
+            targetPath = '/dashboard/employee/job-demand';
+        } else if (path.includes('worker')) { 
+            // This captures 'workers' from your Analytics card
+            targetPath = '/dashboard/employee/worker';
+        } else if (path.includes('subagent') || path.includes('sub-agent')) {
+            targetPath = '/dashboard/employee/subagent';
+        } else if (path === 'reports' || path === 'dashboard') {
+            targetPath = '/dashboard/employee';
+        }
 
         router.push(targetPath);
     };
 
     const handleLogout = () => {
-        // Clear all storage
         localStorage.clear();
-
-        // Clear cookies for server-side consistency
         Cookies.remove('token', { path: '/' });
         Cookies.remove('role', { path: '/' });
-
         router.push('/login');
     };
 
@@ -70,7 +81,7 @@ export default function EmployeePage() {
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
                 <div className="flex flex-col items-center gap-3">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
                     <p className="text-slate-500 font-medium animate-pulse">Verifying Session...</p>
                 </div>
             </div>
@@ -85,6 +96,9 @@ export default function EmployeePage() {
             onNavigate={handleNavigation}
             onLogout={handleLogout}
         >
+            {/* EmployeeDashboard must pass the onNavigate prop 
+              down to the ReportsPage component inside it.
+            */}
             <EmployeeDashboard onNavigate={handleNavigation} />
         </DashboardLayout>
     );

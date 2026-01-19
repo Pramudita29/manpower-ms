@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { TrendingUp, Users, Briefcase, Calendar, Info, ShieldCheck } from 'lucide-react';
+import { TrendingUp, Users, Briefcase, Calendar, Info } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -22,7 +22,8 @@ import 'chartjs-adapter-date-fns';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, BarController, LineController, Title, Tooltip, Legend, Filler);
 
-export function ReportsPage({ data, summary }) {
+// Added onNavigate to props
+export function ReportsPage({ data, summary, onNavigate }) {
   const [filter, setFilter] = useState('month');
   const isMock = !data;
 
@@ -93,7 +94,7 @@ export function ReportsPage({ data, summary }) {
     <div className="space-y-8">
       {isMock && (
         <div className="bg-amber-50 border-l-4 border-amber-400 p-4 flex items-center gap-3">
-          <Info className="text-amber-600" size={20} />
+          <span className="text-amber-600"><Info size={20} /></span>
           <p className="text-amber-700 text-sm font-medium">Showing Demo Data. Connect API for live stats.</p>
         </div>
       )}
@@ -118,7 +119,15 @@ export function ReportsPage({ data, summary }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Workers" value={stats.totalWorkers} icon={<Users />} color="text-emerald-600" bg="bg-emerald-50" />
+        {/* Updated: This card now navigates to workers */}
+        <StatCard 
+          title="Total Workers" 
+          value={stats.totalWorkers} 
+          icon={<Users />} 
+          color="text-emerald-600" 
+          bg="bg-emerald-50" 
+          onClick={() => onNavigate('workers')} 
+        />
         <StatCard title="Active Demands" value={stats.totalJobDemands} icon={<Briefcase />} color="text-indigo-600" bg="bg-indigo-50" />
         <StatCard title="Avg Workers/Day" value={stats.avgWorkers} icon={<TrendingUp />} color="text-green-600" bg="bg-green-50" />
         <StatCard title="Avg Demands/Day" value={stats.avgDemands} icon={<Calendar />} color="text-purple-600" bg="bg-purple-50" />
@@ -127,16 +136,35 @@ export function ReportsPage({ data, summary }) {
       <Card>
         <CardHeader><CardTitle>Performance Trends</CardTitle></CardHeader>
         <CardContent className="h-[350px]">
-          <Chart type="bar" data={chartData} options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true }, y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } } }} />
+          <Chart 
+            type="bar" 
+            data={chartData} 
+            options={{ 
+              responsive: true, 
+              maintainAspectRatio: false, 
+              scales: { 
+                y: { beginAtZero: true }, 
+                y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } 
+              } 
+            }} 
+          />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function StatCard({ title, value, icon, color, bg }) {
+// Updated StatCard with click handler and hover styles
+function StatCard({ title, value, icon, color, bg, onClick }) {
   return (
-    <Card className={`border-none shadow-sm ${bg}`}>
+    <Card 
+      onClick={onClick}
+      className={`border-none shadow-sm transition-all duration-200 ${bg} ${
+        onClick 
+          ? 'cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ring-1 ring-transparent hover:ring-emerald-200' 
+          : ''
+      }`}
+    >
       <CardContent className="p-5 flex justify-between items-center">
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase">{title}</p>

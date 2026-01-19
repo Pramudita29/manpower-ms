@@ -102,7 +102,7 @@ export function SubAgentListPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">Sub Agents</h1>
-          <p className="text-gray-600 mt-1 ">Manage recruitment partners and their performance</p>
+          <p className="text-gray-600 mt-1 font-medium italic">Manage recruitment partners and their performance</p>
         </div>
       <Button
   onClick={() => setView('add')}
