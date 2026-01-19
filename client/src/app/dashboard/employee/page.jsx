@@ -37,24 +37,36 @@ export default function EmployeePage() {
         setIsReady(true);
     }, [router]);
 
+    // In EmployeePage.tsx - handleNavigation
     const handleNavigation = (path) => {
-        if (!path) return;
+        console.log("[NAVIGATION REQUEST]", { requestedPath: path });
+
+        if (!path) {
+            console.warn("Navigation called without path");
+            return;
+        }
 
         if (path.startsWith('/') || path.includes('?')) {
+            console.log("→ Direct navigation to:", path);
             router.push(path);
             return;
         }
 
-        let targetPath = '/dashboard/employee';
+        const routes = {
+            'employer': '/dashboard/employee/employer',
+            'job-demand': '/dashboard/employee/job-demand',
+            'worker': '/dashboard/employee/worker',
+            'subagent': '/dashboard/employee/subagent',
+            'sub-agent': '/dashboard/employee/subagent',
+            // add more if needed
+        };
 
-        if (path.includes('employer')) targetPath = '/dashboard/employee/employer';
-        else if (path.includes('job-demand')) targetPath = '/dashboard/employee/job-demand';
-        else if (path.includes('worker')) targetPath = '/dashboard/employee/worker';
-        else if (path.includes('subagent') || path.includes('sub-agent')) targetPath = '/dashboard/employee/subagent';
+        const targetPath = routes[path] || '/dashboard/employee';
+        console.log("→ Mapped to:", targetPath);
 
         router.push(targetPath);
     };
-
+    
     const handleLogout = () => {
         // Clear all storage
         localStorage.clear();
