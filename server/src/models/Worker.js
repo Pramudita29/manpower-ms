@@ -21,7 +21,7 @@ const WorkerSchema = new mongoose.Schema({
   },
   subAgentId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SubAgent', 
+    ref: 'SubAgent',
   },
 
   companyId: {
@@ -41,16 +41,16 @@ const WorkerSchema = new mongoose.Schema({
   currentStage: {
     type: String,
     enum: [
-      'document-collection', 
-      'document-verification', 
-      'interview', 
-      'medical-examination', 
-      'police-clearance', 
-      'training', 
-      'visa-application', 
-      'visa-approval', 
-      'ticket-booking', 
-      'pre-departure-orientation', 
+      'document-collection',
+      'document-verification',
+      'interview',
+      'medical-examination',
+      'police-clearance',
+      'training',
+      'visa-application',
+      'visa-approval',
+      'ticket-booking',
+      'pre-departure-orientation',
       'deployed'
     ],
     default: 'document-collection'
@@ -62,7 +62,7 @@ const WorkerSchema = new mongoose.Schema({
       category: String, // e.g., 'passport', 'medical-certificate'
       name: String,     // Custom name given by user
       fileName: String, // Actual file name from disk
-      fileSize: String, 
+      fileSize: String,
       path: String,
       status: { type: String, default: 'pending' },
       uploadedAt: { type: Date, default: Date.now },
@@ -74,14 +74,14 @@ const WorkerSchema = new mongoose.Schema({
       stage: String,
       status: {
         type: String,
-        enum: ['pending', 'processing', 'in-progress', 'completed'],
+        enum: ['pending', 'in-progress', 'completed', 'rejected'],
         default: 'pending',
       },
       date: { type: Date, default: Date.now },
       notes: String,
     },
   ],
-  
+
   notes: String,
 
   createdBy: {
