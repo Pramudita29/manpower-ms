@@ -42,16 +42,30 @@ export default function EmployeePage() {
      * This receives the 'workers' string from your ReportsPage
      * and maps it to the correct Next.js route.
      */
+    // In EmployeePage.tsx - handleNavigation
     const handleNavigation = (path) => {
-        if (!path) return;
+        console.log("[NAVIGATION REQUEST]", { requestedPath: path });
+
+        if (!path) {
+            console.warn("Navigation called without path");
+            return;
+        }
 
         // Handle direct paths or queries
         if (path.startsWith('/') || path.includes('?')) {
+            console.log("→ Direct navigation to:", path);
             router.push(path);
             return;
         }
 
-        let targetPath = '/dashboard/employee';
+        const routes = {
+            'employer': '/dashboard/employee/employer',
+            'job-demand': '/dashboard/employee/job-demand',
+            'worker': '/dashboard/employee/worker',
+            'subagent': '/dashboard/employee/subagent',
+            'sub-agent': '/dashboard/employee/subagent',
+            // add more if needed
+        };
 
         // Mapping logic
         if (path.includes('employer')) {
@@ -66,10 +80,12 @@ export default function EmployeePage() {
         } else if (path === 'reports' || path === 'dashboard') {
             targetPath = '/dashboard/employee';
         }
+        const targetPath = routes[path] || '/dashboard/employee';
+        console.log("→ Mapped to:", targetPath);
 
         router.push(targetPath);
     };
-
+    
     const handleLogout = () => {
         localStorage.clear();
         Cookies.remove('token', { path: '/' });
