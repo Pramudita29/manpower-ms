@@ -139,13 +139,13 @@ const ReminderItem = memo(function ReminderItem({
     isOwn,
     showArchived,
 }) {
-    const daysLeft = useCallback((targetDate) => {
+    const daysLeftCalc = useCallback((targetDate) => {
         if (!targetDate) return null;
         const diffMs = new Date(targetDate) - getNepalTime();
         return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     }, []);
 
-    const d = daysLeft(rem.targetDate);
+    const d = daysLeftCalc(rem.targetDate);
     const isOver = d < 0;
     const isToday = d === 0;
     const isSoon = d > 0 && d <= 2;
@@ -261,7 +261,6 @@ function useDashboard() {
     const [entity, setEntity] = useState("");
 
     const [urgentCount, setUrgentCount] = useState(0);
-
     const [reminderFilter, setReminderFilter] = useState('all');
     const [logFilter, setLogFilter] = useState('all');
 
@@ -280,7 +279,8 @@ function useDashboard() {
                 setNotes(res.data.data.notes || []);
                 setDropdowns(res.data.data.dropdowns || {});
             }
-        } catch {
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
             toast.error("Failed to load dashboard data");
         } finally {
             setLoading(false);
@@ -302,31 +302,27 @@ function useDashboard() {
 
         setUrgentCount(urgent);
 
-        // Only show urgent toast if still authenticated
         if (urgent > 0 && localStorage.getItem("token")) {
             const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
             toast(
-                (t) => (
-                    <div className="flex items-center gap-3 w-full">
-                        <div className="flex items-center justify-center rounded-full bg-red-50 p-2">
-                            <AlertCircle className="text-red-600" size={18} />
-                        </div>
-                        <div className="flex-1 ml-2">
-                            <div className="text-sm font-extrabold text-[#7f1d1d]">{msg}</div>
-                            <div className="text-xs text-[#9b1f1f] mt-0.5">Check your reminders panel</div>
-                        </div>
-                        <button onClick={() => toast.dismiss(t.id)} className="ml-3 p-1.5 rounded-full hover:bg-slate-100">
-                            <CloseIcon size={16} className="text-slate-600" />
-                        </button>
+                <div className="flex items-center gap-3 w-full">
+                    <div className="flex items-center justify-center rounded-full bg-red-50 p-2">
+                        <AlertCircle className="text-red-600" size={18} />
                     </div>
-                ),
+                    <div className="flex-1 ml-2">
+                        <div className="text-sm font-extrabold text-[#7f1d1d]">{msg}</div>
+                        <div className="text-xs text-[#9b1f1f] mt-0.5">Check your reminders panel</div>
+                    </div>
+                    <button onClick={() => toast.dismiss(URGENT_TOAST_ID)} className="ml-3 p-1.5 rounded-full hover:bg-slate-100">
+                        <CloseIcon size={16} className="text-slate-600" />
+                    </button>
+                </div>,
                 { id: URGENT_TOAST_ID, duration: Infinity, position: "top-center", style: URGENT_TOAST_STYLE }
             );
         } else {
             toast.dismiss(URGENT_TOAST_ID);
         }
 
-        // Cleanup toast on unmount / logout
         return () => {
             toast.dismiss(URGENT_TOAST_ID);
         };
@@ -345,7 +341,9 @@ function useDashboard() {
         const active = filtered.filter((n) => !n.isCompleted && (daysLeft(n.targetDate) ?? 999) >= 0);
         const archived = filtered.filter((n) => n.isCompleted || (daysLeft(n.targetDate) ?? 999) < 0);
 
-        return (showArchived ? archived : active).sort((a, b) => (daysLeft(a.targetDate) ?? 9999) - (daysLeft(b.targetDate) ?? 9999));
+        return (showArchived ? archived : active).sort((a, b) =>
+            (daysLeft(a.targetDate) ?? 9999) - (daysLeft(b.targetDate) ?? 9999)
+        );
     }, [notes, showArchived, daysLeft, reminderFilter, currentUserId]);
 
     const logs = useMemo(() => {
@@ -388,9 +386,7 @@ function useDashboard() {
         fd.append("category", category);
         if (date) fd.append("targetDate", date);
         if (file) fd.append("attachment", file);
-        if (entity) {
-            fd.append("linkedEntityId", entity);
-        }
+        if (entity) fd.append("linkedEntityId", entity);
 
         try {
             const config = { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } };
@@ -399,7 +395,7 @@ function useDashboard() {
             } else {
                 await axios.post(`${API_BASE}/notes`, fd, config);
             }
-            toast.success("Saved successfully");
+            toast.success(editId ? "Updated successfully" : "Saved successfully");
             resetForm();
             fetchData();
         } catch {
@@ -420,21 +416,21 @@ function useDashboard() {
 
     const openForm = useCallback((type) => {
         setForm(type);
-        setCategory(type === "reminder" ? "general" : "general");
+        setCategory(type === "reminder" ? "reminder" : "general");
         setEntity("");
+        setDate("");
+        setFile(null);
+        setContent("");
+        setEditId(null);
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, []);
 
     const editNote = useCallback((n) => {
         setEditId(n._id);
         setContent(n.content || "");
-        if (n.targetDate) {
-            setCategory("general");
-            setForm("reminder");
-        } else {
-            setCategory(n.category || "general");
-            setForm("note");
-        }
+        const isReminder = !!n.targetDate;
+        setForm(isReminder ? "reminder" : "note");
+        setCategory(n.category || (isReminder ? "reminder" : "general"));
         setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
 
         const rawLinked = n.linkedEntityId;
@@ -450,13 +446,11 @@ function useDashboard() {
 
     const getCreatorInfo = useCallback((note) => {
         if (!note?.createdBy) return { display: "Unknown", isAdmin: false };
-
         const creator = note.createdBy;
         const isOwn = String(creator._id || creator) === String(currentUserId);
         const name = creator.fullName || "Unknown User";
         const display = isOwn ? "ME" : name;
         const isAdmin = creator.role === "admin" || creator.role === "super_admin";
-
         return { display, isAdmin };
     }, [currentUserId]);
 
@@ -476,7 +470,6 @@ function useDashboard() {
         dropdowns,
         loading,
         form,
-        editId,
         content,
         setContent,
         category,
@@ -507,138 +500,84 @@ function useDashboard() {
         logFilter,
         setLogFilter,
         isOwnItem,
+        editId,
     };
 }
 
 export default function EmployeeDashboard({ navigateTo = () => { } }) {
     const {
-        isBS,
-        setIsBS,
-        showArchived,
-        setShowArchived,
-        stats,
-        dropdowns,
-        loading,
-        form,
-        content,
-        setContent,
-        category,
-        setCategory,
-        date,
-        setDate,
-        file,
-        setFile,
-        entity,
-        setEntity,
-        urgentCount,
-        sortedReminders,
-        logs,
-        daysLeft,
-        markDone,
-        saveNote,
-        deleteNote,
-        editNote,
-        resetForm,
-        openForm,
-        fetchData,
-        currentUserId,
-        formatStatValue,
-        isEmployeeTagged,
-        getCreatorInfo,
-        reminderFilter,
-        setReminderFilter,
-        logFilter,
-        setLogFilter,
+        isBS, setIsBS,
+        showArchived, setShowArchived,
+        stats, dropdowns, loading,
+        form, content, setContent, category, setCategory,
+        date, setDate, file, setFile, entity, setEntity,
+        urgentCount, sortedReminders, logs,
+        markDone, saveNote, deleteNote, editNote,
+        resetForm, openForm, fetchData,
+        currentUserId, formatStatValue,
+        isEmployeeTagged, getCreatorInfo,
+        reminderFilter, setReminderFilter,
+        logFilter, setLogFilter,
         isOwnItem,
+        editId,
     } = useDashboard();
 
     const workersMap = useMemo(() => {
         const m = {};
-        (dropdowns.workers || []).forEach((w) => (m[w._id] = w));
+        (dropdowns.workers || []).forEach(w => m[w._id] = w);
         return m;
     }, [dropdowns]);
 
     const employersMap = useMemo(() => {
         const m = {};
-        (dropdowns.employers || []).forEach((e) => (m[e._id] = e));
+        (dropdowns.employers || []).forEach(e => m[e._id] = e);
         return m;
     }, [dropdowns]);
 
     const demandsMap = useMemo(() => {
         const m = {};
-        (dropdowns.demands || []).forEach((d) => (m[d._id] = d));
+        (dropdowns.demands || []).forEach(d => m[d._id] = d);
         return m;
     }, [dropdowns]);
 
     const subAgentsMap = useMemo(() => {
         const m = {};
-        (dropdowns.subAgents || []).forEach((s) => (m[s._id] = s));
+        (dropdowns.subAgents || []).forEach(s => m[s._id] = s);
         return m;
     }, [dropdowns]);
 
     const getLinkedLabel = useCallback((note) => {
         if (!note?.linkedEntityId) return null;
-        const raw = note.linkedEntityId;
-        const id = typeof raw === "object" ? raw._id || "" : raw || "";
+        const id = typeof note.linkedEntityId === "object" ? note.linkedEntityId._id : note.linkedEntityId;
 
         if (note.category === "worker") return workersMap[id]?.name || "Worker";
         if (note.category === "employer") return employersMap[id]?.employerName || "Employer";
         if (note.category === "job-demand") return demandsMap[id]?.jobTitle || "Job Demand";
         if (note.category === "sub-agent") return subAgentsMap[id]?.name || "Sub Agent";
-
-        return typeof raw === "object" ? raw.name || raw.employerName || raw.jobTitle || "Entity" : "Entity";
+        return "Entity";
     }, [workersMap, employersMap, demandsMap, subAgentsMap]);
 
     if (loading) {
         return (
-            <div className="h-screen flex items-center justify-center bg-[#F1F5F9]">
+            <div className="h-screen flex items-center justify-center bg-[#F9FAFB]">
                 <RefreshCw className="animate-spin text-indigo-600" size={48} />
             </div>
         );
     }
 
     const statCards = [
-        {
-            title: "Employers",
-            value: formatStatValue(stats.employersAdded),
-            icon: <Building2 size={28} />,
-            gradient: "from-blue-600 to-indigo-600",
-            path: "employer",
-        },
-        {
-            title: "Job Demands",
-            value: formatStatValue(stats.activeJobDemands),
-            icon: <Briefcase size={28} />,
-            gradient: "from-purple-600 to-indigo-600",
-            path: "job-demand",
-        },
-        {
-            title: "Workers",
-            value: formatStatValue(stats.workersInProcess),
-            icon: <Users size={28} />,
-            gradient: "from-emerald-600 to-teal-600",
-            path: "worker",
-        },
-        {
-            title: "Priority Tasks",
-            value: urgentCount,
-            icon: <AlertCircle size={28} />,
-            gradient: "from-orange-500 to-rose-600",
-        },
-        {
-            title: "Sub Agents",
-            value: formatStatValue(stats.activeSubAgents),
-            icon: <UserCircle size={28} />,
-            gradient: "from-slate-700 to-slate-900",
-            path: "subagent",
-        },
+        { title: "Employers", value: formatStatValue(stats.employersAdded), icon: <Building2 size={28} />, gradient: "from-blue-600 to-indigo-600", path: "employer" },
+        { title: "Job Demands", value: formatStatValue(stats.activeJobDemands), icon: <Briefcase size={28} />, gradient: "from-purple-600 to-indigo-600", path: "job-demand" },
+        { title: "Workers", value: formatStatValue(stats.workersInProcess), icon: <Users size={28} />, gradient: "from-emerald-600 to-teal-600", path: "worker" },
+        { title: "Priority Tasks", value: urgentCount, icon: <AlertCircle size={28} />, gradient: "from-orange-500 to-rose-600" },
+        { title: "Sub Agents", value: formatStatValue(stats.activeSubAgents), icon: <UserCircle size={28} />, gradient: "from-slate-700 to-slate-900", path: "subagent" },
     ];
 
     return (
         <>
             <Toaster position="top-center" />
 
-            <div className="min-h-screen bg-[#F1F5F9] p-6 md:p-10 space-y-10 text-slate-800">
+            <div className="min-h-screen bg-[#F9FAFB] p-4 sm:p-6 lg:p-8 xl:p-10 space-y-8 lg:space-y-10 text-slate-800">
                 {/* Header */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div className="flex items-center gap-5">
@@ -646,14 +585,14 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                             <UserCircle size={32} />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Management Hub</h1>
+                            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Management Hub</h1>
                             <p className="text-sm font-bold text-slate-500 uppercase flex items-center gap-2 mt-1">
                                 <Clock />
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
                         <div className="flex bg-slate-200 p-1.5 rounded-xl font-bold">
                             <button
                                 onClick={() => setIsBS(false)}
@@ -672,13 +611,13 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                         <div className="flex gap-3">
                             <Button
                                 onClick={() => openForm("note")}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 h-12 font-bold shadow-lg flex items-center gap-2"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 sm:px-6 h-11 sm:h-12 font-bold shadow-lg flex items-center gap-2"
                             >
                                 <Plus size={18} /> Note
                             </Button>
                             <Button
                                 onClick={() => openForm("reminder")}
-                                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6 h-12 font-bold shadow-lg flex items-center gap-2"
+                                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-5 sm:px-6 h-11 sm:h-12 font-bold shadow-lg flex items-center gap-2"
                             >
                                 <Bell size={18} /> Reminder
                             </Button>
@@ -686,134 +625,201 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
                     {statCards.map((stat) => (
                         <StatCard
                             key={stat.title}
-                            title={stat.title}
-                            value={stat.value}
-                            icon={stat.icon}
-                            gradient={stat.gradient}
-                            path={stat.path}
+                            {...stat}
                             onNavigate={navigateTo}
                         />
                     ))}
                 </div>
 
                 {/* Main Content */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                    <div className="lg:col-span-5 space-y-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
+                    {/* Left Column - Reminders + Form */}
+                    <div className="lg:col-span-5 space-y-6 lg:space-y-8">
                         {form && (
-                            <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
-                                <h2 className="text-xl font-black mb-6 flex items-center gap-3">
-                                    {form === "reminder" ? <Bell className="text-rose-600" /> : <FileText className="text-indigo-600" />}
-                                    {form === "reminder" ? "New Reminder" : "New Note"}
+                            <Card className="p-6 sm:p-7 lg:p-8 rounded-2xl shadow-md border border-slate-200/70 bg-white">
+                                <h2 className="text-xl sm:text-2xl font-black mb-6 flex items-center gap-3">
+                                    {form === "reminder" ? <Bell className="text-rose-600" size={26} /> : <FileText className="text-indigo-600" size={26} />}
+                                    {form === "reminder" ? "New Reminder" : "New Note / Log"}
                                 </h2>
-                                <div className="space-y-5">
-                                    <textarea
-                                        className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none min-h-[110px]"
-                                        placeholder="Write..."
-                                        value={content}
-                                        onChange={(e) => setContent(e.target.value)}
-                                    />
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <select
-                                            className="p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
-                                            value={category}
-                                            onChange={(e) => setCategory(e.target.value)}
-                                            disabled={form === "reminder"}
-                                        >
-                                            <option value="general">General</option>
-                                            <option value="worker">Worker</option>
-                                            <option value="employer">Employer</option>
-                                            <option value="job-demand">Job Demand</option>
-                                            <option value="sub-agent">Sub Agent</option>
-                                        </select>
-                                        <input
-                                            type="date"
-                                            className="p-3 rounded-xl border border-slate-200 font-bold text-sm"
-                                            value={date}
-                                            onChange={(e) => setDate(e.target.value)}
+
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            {form === "reminder" ? "Reminder message" : "Note content"}
+                                        </label>
+                                        <textarea
+                                            className="w-full p-4 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none min-h-[120px] resize-y text-base"
+                                            placeholder={form === "reminder" ? "e.g. Call Mr. Ram regarding visa process" : "Write your note here..."}
+                                            value={content}
+                                            onChange={(e) => setContent(e.target.value)}
                                         />
                                     </div>
 
-                                    {form !== "reminder" && (
+                                    <div className="grid md:grid-cols-2 gap-5">
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-semibold text-slate-700">Category</label>
+                                            <select
+                                                className="w-full p-3.5 rounded-xl border border-slate-200 bg-white text-slate-800 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none appearance-none"
+                                                value={category}
+                                                onChange={(e) => setCategory(e.target.value)}
+                                            >
+                                                <option value="general">General</option>
+                                                <option value="reminder">Reminder</option>
+                                                <option value="worker">Worker</option>
+                                                <option value="employer">Employer</option>
+                                                <option value="job-demand">Job Demand</option>
+                                                <option value="sub-agent">Sub Agent</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-semibold text-slate-700">
+                                                {form === "reminder" ? "Target Date" : "Due Date (optional)"}
+                                            </label>
+                                            <input
+                                                type="date"
+                                                className="w-full p-3.5 rounded-xl border border-slate-200 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                value={date}
+                                                onChange={(e) => setDate(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Link to entity (optional)</label>
                                         <select
-                                            className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
+                                            className="w-full p-3.5 rounded-xl border border-slate-200 bg-white text-slate-800 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none appearance-none"
                                             value={entity}
                                             onChange={(e) => setEntity(e.target.value)}
                                         >
-                                            <option value="">Select entity (optional)</option>
-                                            {/* Populate options according to your actual entities */}
+                                            <option value="">— Not linked —</option>
+
+                                            {category === "worker" &&
+                                                dropdowns.workers?.map((w) => (
+                                                    <option key={w._id} value={w._id}>
+                                                        {w.name}
+                                                    </option>
+                                                ))}
+
+                                            {category === "employer" &&
+                                                dropdowns.employers?.map((e) => (
+                                                    <option key={e._id} value={e._id}>
+                                                        {e.employerName || e.name || "Unnamed Employer"}
+                                                    </option>
+                                                ))}
+
+                                            {category === "job-demand" &&
+                                                dropdowns.demands?.map((d) => (
+                                                    <option key={d._id} value={d._id}>
+                                                        {d.jobTitle || "Untitled Demand"}
+                                                    </option>
+                                                ))}
+
+                                            {category === "sub-agent" &&
+                                                dropdowns.subAgents?.map((s) => (
+                                                    <option key={s._id} value={s._id}>
+                                                        {s.name || "Unnamed Sub Agent"}
+                                                    </option>
+                                                ))}
                                         </select>
-                                    )}
+                                    </div>
 
-                                    <input
-                                        type="file"
-                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
-                                        onChange={(e) => setFile(e.target.files?.[0] || null)}
-                                    />
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Attachment (optional)</label>
+                                        <input
+                                            type="file"
+                                            className="w-full p-3 rounded-xl border border-slate-200 text-slate-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer transition-colors"
+                                            onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                        />
+                                    </div>
 
-                                    <div className="flex gap-3">
-                                        <Button onClick={saveNote} className="flex-1 bg-slate-900 hover:bg-black text-white py-6 rounded-xl font-bold">
-                                            Save
-                                        </Button>
-                                        <Button variant="outline" onClick={resetForm} className="flex-1 py-6 rounded-xl font-bold">
+                                    <div className="flex flex-col-reverse sm:flex-row gap-4 pt-6 border-t border-slate-100">
+                                        <Button
+                                            variant="destructive"
+                                            onClick={resetForm}
+                                            className="flex-1 h-12 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+                                        >
                                             Cancel
+                                        </Button>
+
+                                        <Button
+                                            onClick={saveNote}
+                                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl font-semibold shadow-md transition-all sm:order-last"
+                                        >
+                                            {editId ? "Update" : "Save"}
                                         </Button>
                                     </div>
                                 </div>
                             </Card>
                         )}
 
+                        {/* Reminders Section - NO OVERLAP LAYOUT */}
                         {/* Reminders Section */}
                         <div className="space-y-6">
-                            <div className="flex items-center justify-between px-2 flex-wrap gap-4">
-                                <div className="flex items-center gap-4">
-                                    <h2 className="text-xl font-black flex items-center gap-3 relative">
-                                        <div className="relative">
-                                            <Bell size={24} className="text-rose-600" />
-                                            {urgentCount > 0 && (
-                                                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-sm">
-                                                    {urgentCount > 9 ? "9+" : urgentCount}
-                                                </span>
-                                            )}
-                                        </div>
+                            {/* Header - fully responsive, no overlap */}
+                            <div className="flex flex-col gap-4">
+                                {/* Title + bell */}
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <Bell size={24} className="text-rose-600" />
+                                        {urgentCount > 0 && (
+                                            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-sm">
+                                                {urgentCount > 9 ? "9+" : urgentCount}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h2 className="text-xl font-black">
                                         {showArchived ? "Archived Reminders" : "Reminders"}
                                     </h2>
+                                </div>
 
-                                    <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-medium">
+                                {/* Controls row - toggle + filter */}
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 sm:justify-between">
+                                    {/* Active / Archived toggle */}
+                                    <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-medium border border-slate-200 w-fit">
                                         <button
                                             onClick={() => setShowArchived(false)}
-                                            className={`px-4 py-1.5 rounded-lg transition-all ${!showArchived ? "bg-white shadow-sm font-bold" : "text-slate-600"}`}
+                                            className={`px-5 py-2 rounded-lg transition-all font-medium ${!showArchived
+                                                    ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
+                                                    : "text-slate-600 hover:bg-slate-50"
+                                                }`}
                                         >
                                             Active
                                         </button>
                                         <button
                                             onClick={() => setShowArchived(true)}
-                                            className={`px-4 py-1.5 rounded-lg transition-all ${showArchived ? "bg-white shadow-sm font-bold" : "text-slate-600"}`}
+                                            className={`px-5 py-2 rounded-lg transition-all font-medium ${showArchived
+                                                    ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
+                                                    : "text-slate-600 hover:bg-slate-50"
+                                                }`}
                                         >
                                             Archived
                                         </button>
                                     </div>
-                                </div>
 
-                                <select
-                                    className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
-                                    value={reminderFilter}
-                                    onChange={(e) => setReminderFilter(e.target.value)}
-                                >
-                                    <option value="all">Show All</option>
-                                    <option value="my">My Reminders</option>
-                                    <option value="tagged">Tagged for Me</option>
-                                </select>
+                                    {/* Filter dropdown */}
+                                    <select
+                                        className="p-2.5 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm w-full sm:w-auto min-w-[140px]"
+                                        value={reminderFilter}
+                                        onChange={(e) => setReminderFilter(e.target.value)}
+                                    >
+                                        <option value="all">All</option>
+                                        <option value="my">My Reminders</option>
+                                        <option value="tagged">Tagged for Me</option>
+                                    </select>
+                                </div>
                             </div>
 
+                            {/* List */}
                             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 custom-scrollbar">
                                 {sortedReminders.length === 0 ? (
-                                    <p className="text-center text-slate-400 py-8">
-                                        No {showArchived ? "archived" : "active"} reminders
+                                    <p className="text-center text-slate-400 py-12">
+                                        No {showArchived ? "archived" : "active"} reminders found
                                     </p>
                                 ) : (
                                     sortedReminders.map((rem) => {
@@ -841,19 +847,19 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                         </div>
                     </div>
 
-                    {/* Operational Logs */}
+                    {/* Right Column - Operational Logs */}
                     <div className="lg:col-span-7 space-y-6">
-                        <div className="flex items-center justify-between px-2">
-                            <h2 className="text-xl font-black flex items-center gap-3">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-2">
+                            <h2 className="text-xl font-black flex items-center gap-3 whitespace-nowrap">
                                 <FileText size={24} className="text-indigo-600" /> Operational Logs
                             </h2>
 
                             <select
-                                className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
+                                className="p-2.5 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm w-full sm:w-auto min-w-[140px]"
                                 value={logFilter}
                                 onChange={(e) => setLogFilter(e.target.value)}
                             >
-                                <option value="all">Show All</option>
+                                <option value="all">All</option>
                                 <option value="my">My Notes</option>
                                 <option value="tagged">Tagged for Me</option>
                             </select>
@@ -861,13 +867,13 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[860px] overflow-y-auto pr-2 custom-scrollbar">
                             {logs.length === 0 ? (
-                                <p className="text-center text-slate-400 py-12 col-span-2">No notes yet</p>
+                                <p className="text-center text-slate-400 py-12 col-span-2">No operational logs yet</p>
                             ) : (
                                 logs.map((note) => {
                                     const { display: creatorDisplay, isAdmin: isAdminPosted } = getCreatorInfo(note);
                                     const isOwn = isOwnItem(note);
 
-                                    const logDate = isBS
+                                    const displayDate = isBS
                                         ? `${toNepaliShort(note.createdAt).month} ${toNepaliShort(note.createdAt).day}`
                                         : new Date(note.createdAt).toLocaleDateString("en-US", {
                                             year: "numeric",
@@ -878,7 +884,8 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                     return (
                                         <div
                                             key={note._id}
-                                            className={`bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors group ${isEmployeeTagged(note) ? "bg-indigo-50/40 border-indigo-200" : ""}`}
+                                            className={`bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors group ${isEmployeeTagged(note) ? "bg-indigo-50/40 border-indigo-200" : ""
+                                                }`}
                                         >
                                             {isEmployeeTagged(note) && (
                                                 <Badge className="self-start mb-3 bg-indigo-500 text-white text-xs font-bold px-3 py-1">
@@ -913,7 +920,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                             </div>
 
                                             <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center flex-wrap gap-2">
-                                                <span>Posted by: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
+                                                <span>By: <span className="font-medium text-slate-800">{creatorDisplay}</span></span>
                                                 {isAdminPosted && (
                                                     <Badge className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
                                                         <ShieldCheck size={12} /> Admin
@@ -935,7 +942,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                                     )}
                                                 </div>
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                                    {logDate}
+                                                    {displayDate}
                                                 </span>
                                             </div>
                                         </div>
@@ -955,21 +962,21 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
-                            { to: "worker-add", c: "emerald", i: <UserPlus />, t: "Add Worker", d: "Register & upload documents" },
-                            { to: "employer-add", c: "blue", i: <Building2 />, t: "New Employer", d: "Add company to directory" },
-                            { to: "job-demand-add", c: "purple", i: <FilePlus />, t: "Post Demand", d: "Create job requirement" },
-                            { to: "subagent", c: "orange", i: <Users />, t: "Sub Agents", d: "Manage recruitment partners" },
-                        ].map((x) => (
+                            { to: "worker-add", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
+                            { to: "employer-add", color: "blue", icon: <Building2 />, title: "New Employer", desc: "Add company to directory" },
+                            { to: "job-demand-add", color: "purple", icon: <FilePlus />, title: "Post Demand", desc: "Create job requirement" },
+                            { to: "subagent", color: "orange", icon: <Users />, title: "Sub Agents", desc: "Manage recruitment partners" },
+                        ].map((item) => (
                             <button
-                                key={x.t}
-                                onClick={() => navigateTo(x.to)}
-                                className={`flex flex-col p-7 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group text-left`}
+                                key={item.title}
+                                onClick={() => navigateTo(item.to)}
+                                className="flex flex-col p-7 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group text-left"
                             >
-                                <div className={`w-14 h-14 rounded-2xl bg-${x.c}-100 text-${x.c}-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
-                                    {x.i}
+                                <div className={`w-14 h-14 rounded-2xl bg-${item.color}-100 text-${item.color}-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                                    {item.icon}
                                 </div>
-                                <span className="text-base font-black text-slate-900">{x.t}</span>
-                                <p className="text-sm text-slate-500 mt-1.5">{x.d}</p>
+                                <span className="text-base font-black text-slate-900">{item.title}</span>
+                                <p className="text-sm text-slate-500 mt-1.5">{item.desc}</p>
                             </button>
                         ))}
                     </div>
@@ -977,13 +984,29 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
             </div>
 
             <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
 
-        @keyframes pulse-fast { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:0.7; transform:scale(1.15) } }
-        @keyframes pulse { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:0.8; transform:scale(1.08) } }
-        @keyframes pulse-slow { 0%,100% { opacity:1; transform:scale(1) } 50% { opacity:0.85; transform:scale(1.05) } }
+        @keyframes pulse-fast {
+          0%,100% { opacity:1; transform:scale(1) }
+          50% { opacity:0.7; transform:scale(1.15) }
+        }
+        @keyframes pulse {
+          0%,100% { opacity:1; transform:scale(1) }
+          50% { opacity:0.8; transform:scale(1.08) }
+        }
+        @keyframes pulse-slow {
+          0%,100% { opacity:1; transform:scale(1) }
+          50% { opacity:0.85; transform:scale(1.05) }
+        }
 
         .animate-pulse-fast { animation: pulse-fast 1.2s infinite ease-in-out; }
         .animate-pulse { animation: pulse 1.8s infinite ease-in-out; }
