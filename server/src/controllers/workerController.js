@@ -137,42 +137,37 @@ exports.updateWorkerStage = async (req, res) => {
 
     if (!stage) {
       worker.stageTimeline.push({ stage: stageId, status: status || 'pending', date: new Date() });
-      stage = worker.stageTimeline[worker.stageTimeline.length - 1];
     } else {
       stage.status = status;
       stage.date = new Date();
     }
 
-    // 2. HYPER-REALISTIC LOGIC ENGINE
+    // 2. STATUS ENGINE
     const timeline = worker.stageTimeline;
-    const completedStages = timeline.filter(s => s.status === 'completed');
+    const completedCount = timeline.filter(s => s.status === 'completed').length;
     const anyRejected = timeline.some(s => s.status === 'rejected');
-
-    // Specific Stage Check for "Processing"
-    const hasStartedDocs = timeline.some(s =>
-      (s.stage === 'document-collection' || s.stage === 'document-verification') &&
-      s.status === 'completed'
-    );
+    const anyInProgress = timeline.some(s => s.status === 'in-progress' || s.status === 'completed');
 
     if (anyRejected) {
       worker.status = 'rejected';
-    } else if (completedStages.length >= 11) {
-      worker.status = 'deployed';
-    } else if (hasStartedDocs) {
+    } else if (completedCount >= 11) {
+      // Requirements: Active status when fully deployed
+      worker.status = 'active';
+    } else if (anyInProgress) {
       worker.status = 'processing';
     } else {
       worker.status = 'pending';
     }
 
-    // Update the label for the dashboard
+    // Set current label
     const lastDone = [...timeline].reverse().find(s => s.status === 'completed');
     if (lastDone) worker.currentStage = lastDone.stage;
 
     await worker.save();
 
-    // Return fully populated worker to sync frontend
     const updatedWorker = await Worker.findById(id)
-      .populate('employerId jobDemandId subAgentId')
+      .populate('employerId', 'name employerName companyName country') // Ensure country is populated
+      .populate('jobDemandId subAgentId')
       .lean();
 
     res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
