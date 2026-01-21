@@ -61,6 +61,14 @@ function AdminStatCard({ title, value, icon, gradient, onClick }) {
 }
 
 export default function AdminDashboard({ onNavigate = () => { } }) {
+
+  // ←←← PUT IT HERE — as the very first line inside the function
+  console.log("AdminDashboard rendered — onNavigate is:",
+    typeof onNavigate,
+    onNavigate ? onNavigate.toString().slice(0, 60) + "..." : "undefined"
+  );
+
+
   const [view, setView] = useState('dashboard');
   const [isBS, setIsBS] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -73,7 +81,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     category: 'general',
     targetDate: '',
     linkedEntityId: '',
-    attachment: null,
+    attachment: null
   });
 
   const [stats, setStats] = useState({
@@ -83,13 +91,14 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     activeSubAgents: 0,
     totalEmployees: 0
   });
+
   const [allData, setAllData] = useState([]);
   const [dropdowns, setDropdowns] = useState({});
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(currentUserId || 'all');
   const [editId, setEditId] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false); // Controls modal visibility
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -195,7 +204,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     });
 
     setShowAddModal(true);
-    // Optional: scroll to top if modal is large
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -240,11 +248,12 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
   const reminders = allData
     .filter(n => n.category === 'reminder')
-    .sort((a, b) => new Date(a.targetDate || 0) - new Date(b.targetDate || 0));
+    .sort((a, b) => new Date(a.targetDate || 0).getTime() - new Date(b.targetDate || 0).getTime());
 
   const activeReminders = reminders.filter(
     n => !n.isCompleted && ((getDaysRemaining(n.targetDate) ?? 999) >= 0)
   );
+
   const archivedReminders = reminders.filter(
     n => n.isCompleted || ((getDaysRemaining(n.targetDate) ?? -999) < 0)
   );
@@ -320,7 +329,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
             <UserPlus size={18} /> Register Staff
           </Button>
 
-          {/* Separate Add Note Button */}
           <Button
             onClick={() => {
               resetForm();
@@ -333,16 +341,54 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </div>
       </div>
 
+      {/* Stat Cards – now using the onNavigate prop passed from parent */}
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        <AdminStatCard title="Workers" value={stats.workersInProcess} icon={<UserCircle />} gradient="from-blue-600 to-indigo-600" onClick={() => onNavigate('worker')} />
-        <AdminStatCard title="Staff" value={stats.totalEmployees} icon={<Contact />} gradient="from-indigo-600 to-purple-600" onClick={() => onNavigate('employee-list')} />
-        <AdminStatCard title="Employers" value={stats.employersAdded} icon={<Building2 />} gradient="from-emerald-600 to-teal-600" onClick={() => onNavigate('employer')} />
-        <AdminStatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase />} gradient="from-orange-500 to-rose-600" onClick={() => onNavigate('job-demand')} />
-        <AdminStatCard title="Sub Agents" value={stats.activeSubAgents} icon={<Users />} gradient="from-slate-700 to-slate-900" onClick={() => onNavigate('subagent')} />
+        <AdminStatCard
+          title="Workers"
+          value={stats.workersInProcess}
+          icon={<UserCircle />}
+          gradient="from-blue-600 to-indigo-600"
+          onClick={() => {
+            alert("Workers card was clicked!");   // ← this should pop up a dialog
+            onNavigate("/dashboard/tenant-admin/workers");
+          }}
+        />
+
+        <AdminStatCard
+          title="Staff"
+          value={stats.totalEmployees}
+          icon={<Contact />}
+          gradient="from-indigo-600 to-purple-600"
+          onClick={() => onNavigate('employees')}
+        />
+
+        <AdminStatCard
+          title="Employers"
+          value={stats.employersAdded}
+          icon={<Building2 />}
+          gradient="from-emerald-600 to-teal-600"
+          onClick={() => onNavigate('employers')}
+        />
+
+        <AdminStatCard
+          title="Job Demands"
+          value={stats.activeJobDemands}
+          icon={<Briefcase />}
+          gradient="from-orange-500 to-rose-600"
+          onClick={() => onNavigate('job-demands')}
+        />
+
+        <AdminStatCard
+          title="Sub Agents"
+          value={stats.activeSubAgents}
+          icon={<Users />}
+          gradient="from-slate-700 to-slate-900"
+          onClick={() => onNavigate('sub-agents')}
+        />
       </div>
 
-      {/* Charts – Placed right after stats */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-4">
         <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
           <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
@@ -388,13 +434,11 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       {/* Add Note Modal Popup */}
       {showAddModal && (
         <>
-          {/* Overlay */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300"
             onClick={resetForm}
           />
 
-          {/* Modal Content */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center">
