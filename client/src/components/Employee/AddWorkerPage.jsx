@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Ca
 import { Input, Textarea } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Button } from "../../components/ui/Button";
-import { ArrowLeft, Upload, X, CheckCircle2, ShieldCheck, Info } from "lucide-react";
+import { ArrowLeft, Upload, X, CheckCircle2, ShieldCheck, Info, FileText } from "lucide-react";
 
 export function AddWorkerPage({
   initialData = null,
@@ -30,6 +30,31 @@ export function AddWorkerPage({
     notes: "",
   });
 
+  const [documents, setDocuments] = useState([]);
+  const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
+
+  // 1. EXACT MATCH WITH BACKEND ENUM
+  const documentCategories = [
+    { value: "Passport", label: "Passport" },
+    { value: "Birth Certificate", label: "Birth Certificate" },
+    { value: "Citizenship Certificate", label: "Citizenship Certificate" },
+    { value: "Medical Certificate", label: "Medical Certificate" },
+    { value: "Police Clearance", label: "Police Clearance" },
+    { value: "Educational Certificate", label: "Educational Certificate" },
+    { value: "Passport Photos", label: "Passport Photos" },
+    { value: "Other", label: "Other" }
+  ];
+
+  const requiredChecklist = [
+    "Passport (with minimum 6 months validity)",
+    "Birth Certificate",
+    "Citizenship Certificate",
+    "Medical Certificate",
+    "Police Clearance Certificate",
+    "Educational Certificates",
+    "Passport Size Photos (2 copies)"
+  ];
+
   // Populate data when in edit mode
   useEffect(() => {
     if (initialData) {
@@ -47,32 +72,16 @@ export function AddWorkerPage({
         status: initialData.status || "pending",
         notes: initialData.notes || "",
       });
+
+      // Load existing documents from backend
+      if (initialData.documents) {
+        setDocuments(initialData.documents.map(doc => ({
+          ...doc,
+          isExisting: true // Flag to distinguish from new uploads
+        })));
+      }
     }
   }, [initialData]);
-
-  const [documents, setDocuments] = useState([]);
-  const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
-
-  const documentCategories = [
-    { value: "Passport", label: "Passport" },
-    { value: "Birth Certificate", label: "Birth Certificate" },
-    { value: "Citizenship Certificate", label: "Citizenship Certificate" },
-    { value: "Medical Certificate", label: "Medical Certificate" },
-    { value: "Police Clearance", label: "Police Clearance Certificate" },
-    { value: "Educational Certificate", label: "Educational Certificates" },
-    { value: "Passport Photos", label: "Passport Size Photos" },
-    { value: "Other", label: "Other" }
-  ];
-
-  const requiredChecklist = [
-    "Passport (with minimum 6 months validity)",
-    "Birth Certificate",
-    "Citizenship Certificate",
-    "Medical Certificate",
-    "Police Clearance Certificate",
-    "Educational Certificates",
-    "Passport Size Photos (2 copies)"
-  ];
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -84,13 +93,28 @@ export function AddWorkerPage({
     return String(jdEmpId) === String(formData.employerId);
   });
 
+  // 2. UPDATED DOCUMENT HANDLER TO CAPTURE METADATA
   const handleAddDocument = () => {
     if (currentDoc.file && currentDoc.name) {
-      setDocuments([...documents, currentDoc]);
+      const newDoc = {
+        file: currentDoc.file, // The actual File object for upload
+        category: currentDoc.category,
+        name: currentDoc.name,
+        fileName: currentDoc.file.name,
+        fileSize: (currentDoc.file.size / 1024).toFixed(2) + " KB",
+        isExisting: false
+      };
+
+      setDocuments([...documents, newDoc]);
       setCurrentDoc({ file: null, category: "Passport", name: "" });
+      
       const fileInput = document.getElementById('worker-file-input');
       if (fileInput) fileInput.value = '';
     }
+  };
+
+  const handleRemoveDocument = (index) => {
+    setDocuments(documents.filter((_, idx) => idx !== index));
   };
 
   return (
@@ -172,7 +196,7 @@ export function AddWorkerPage({
           <CardHeader className="bg-blue-600 text-white">
             <div className="flex items-center gap-2">
               <ShieldCheck size={20} />
-              <CardTitle className="text-lg text-white">Documents Upload {isEditMode && "(Add New Only)"}</CardTitle>
+              <CardTitle className="text-lg text-white">Documents Management</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -184,7 +208,7 @@ export function AddWorkerPage({
                 <ul className="space-y-3">
                   {requiredChecklist.map((item, index) => (
                     <li key={index} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
                       {item}
                     </li>
                   ))}
@@ -192,12 +216,27 @@ export function AddWorkerPage({
               </div>
 
               <div className="lg:col-span-8 p-6 space-y-6 bg-white">
-                <div className="p-5 bg-white border-2 border-dashed border-blue-100 rounded-xl space-y-4">
+                <div className="p-5 bg-blue-50/30 border-2 border-dashed border-blue-100 rounded-xl space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select label="Document Category" options={documentCategories} value={currentDoc.category} onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} />
-                    <Input label="Custom Label" placeholder="e.g. Front Page" value={currentDoc.name} onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} />
+                    <Select 
+                        label="Document Category" 
+                        options={documentCategories} 
+                        value={currentDoc.category} 
+                        onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} 
+                    />
+                    <Input 
+                        label="Document Label" 
+                        placeholder="e.g. Front Page, Main Copy" 
+                        value={currentDoc.name} 
+                        onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} 
+                    />
                   </div>
-                  <input id="worker-file-input" type="file" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} />
+                  <input 
+                    id="worker-file-input" 
+                    type="file" 
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                    onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} 
+                  />
                   <button 
                     type="button" 
                     disabled={!currentDoc.file || !currentDoc.name} 
@@ -209,17 +248,33 @@ export function AddWorkerPage({
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  {documents.length > 0 && documents.map((doc, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 border-l-green-500">
+                {/* 3. UPDATED DOCUMENT LIST WITH METADATA DISPLAY */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Attached Files</h4>
+                  {documents.length === 0 && (
+                      <p className="text-center py-6 text-gray-400 text-sm italic border rounded-lg">No documents attached yet.</p>
+                  )}
+                  {documents.map((doc, i) => (
+                    <div key={i} className={`flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 ${doc.isExisting ? 'border-l-blue-500' : 'border-l-green-500'}`}>
                       <div className="flex items-center gap-3">
-                        <CheckCircle2 size={18} className="text-green-500" />
+                        {doc.isExisting ? (
+                            <FileText size={18} className="text-blue-500" />
+                        ) : (
+                            <CheckCircle2 size={18} className="text-green-500" />
+                        )}
                         <div>
                           <p className="text-sm font-bold text-gray-800">{doc.name}</p>
-                          <p className="text-[10px] text-gray-500 uppercase">{doc.category} • {doc.file?.name}</p>
+                          <p className="text-[10px] text-gray-500 uppercase font-medium">
+                            {doc.category} • {doc.fileName || doc.file?.name} • {doc.fileSize} 
+                            {doc.isExisting && " • STORED"}
+                          </p>
                         </div>
                       </div>
-                      <button type="button" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} className="p-1.5 text-gray-400 hover:text-red-500">
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveDocument(i)} 
+                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                      >
                         <X size={18} />
                       </button>
                     </div>
