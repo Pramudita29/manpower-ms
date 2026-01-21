@@ -4,7 +4,8 @@ import {
   ArrowLeft,
   Briefcase,
   Calendar,
-  CheckCircle2, Clock, ExternalLink, FileText,
+  CheckCircle2,
+  Clock,
   Fingerprint,
   Loader2,
   Mail,
@@ -20,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 const getFlagEmoji = (countryName) => {
-  if (!countryName) return "🌍";
+  if (!countryName || countryName === "Not Assigned") return "🌍";
   const countryMap = {
     "saudi arabia": "🇸🇦", "uae": "🇦🇪", "qatar": "🇶🇦",
     "kuwait": "🇰🇼", "malaysia": "🇲🇾", "romania": "🇷🇴",
@@ -94,8 +95,12 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
     </div>
   );
 
-  // Logic: Strictly pull country from the employer object
-  const deployedCountry = worker.employerId?.country || "Processing";
+  // LOGIC 1: Show country continuously from the employer relation
+  const displayCountry = worker.employerId?.country || "Nepal";
+
+  // LOGIC 2: Find the index of the first rejection to disable subsequent stages
+  const firstRejectedIndex = localTimeline.findIndex(item => item.status === 'rejected');
+
   const progress = Math.round((localTimeline.filter(s => s.status === 'completed').length / SCHEMA_STAGES.length) * 100);
 
   return (
@@ -128,8 +133,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
             <div className="px-6 py-2 border-r border-slate-100">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Country</p>
               <div className="flex items-center gap-2">
-                <span className="text-xl">{getFlagEmoji(deployedCountry)}</span>
-                <span className="text-lg font-black text-slate-800">{deployedCountry}</span>
+                <span className="text-xl">{getFlagEmoji(displayCountry)}</span>
+                <span className="text-lg font-black text-slate-800">{displayCountry}</span>
               </div>
             </div>
             <div className="px-6">
@@ -142,7 +147,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
 
         <div className="grid lg:grid-cols-3 gap-8">
 
-          {/* LEFT: PERSONAL & EMPLOYMENT INFO */}
+          {/* LEFT: PERSONAL INFO */}
           <div className="space-y-6">
             <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden ring-1 ring-slate-100">
               <CardHeader className="border-b border-slate-50 pb-4">
@@ -153,9 +158,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardContent className="pt-6 space-y-5">
                 <InfoRow icon={<ShieldCheck size={16} />} label="Passport No" value={worker.passportNumber} isCopyable />
                 <InfoRow icon={<Calendar size={16} />} label="Joined Date" value={new Date(worker.createdAt).toLocaleDateString()} />
-                <InfoRow icon={<Phone size={16} />} label="Phone Number" value={worker.phone || "Not Provided"} />
-                <InfoRow icon={<Mail size={16} />} label="Email Address" value={worker.email || "No Email"} />
-                <InfoRow icon={<MapPin size={16} />} label="Current Address" value={worker.address || "N/A"} />
+                <InfoRow icon={<Phone size={16} />} label="Contact" value={worker.contact || "N/A"} />
+                <InfoRow icon={<Mail size={16} />} label="Email" value={worker.email || "No Email"} />
+                <InfoRow icon={<MapPin size={16} />} label="Address" value={worker.address || "N/A"} />
               </CardContent>
             </Card>
 
@@ -164,17 +169,17 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 <div className="flex justify-between items-start mb-8">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Employer</p>
-                    <p className="text-xl font-bold">{worker.employerId?.employerName || 'Pending Assignment'}</p>
+                    <p className="text-xl font-bold">{worker.employerId?.employerName || 'Pending'}</p>
                   </div>
                   <div className="p-3 bg-white/10 rounded-2xl"><Briefcase className="text-indigo-400" /></div>
                 </div>
                 <div className="space-y-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-400 font-bold">Designation</span>
-                    <span className="font-bold text-indigo-300">{worker.jobDemandId?.jobTitle || 'General'}</span>
+                    <span className="text-slate-400 font-bold">Role</span>
+                    <span className="font-bold text-indigo-300">{worker.jobDemandId?.jobTitle || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-400 font-bold">Work Progress</span>
+                    <span className="text-slate-400 font-bold">Progress</span>
                     <span className="font-bold text-white">{progress}%</span>
                   </div>
                   <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden mt-2">
@@ -191,9 +196,6 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardTitle className="text-lg font-black text-slate-800 flex items-center gap-3">
                 <Clock className="text-indigo-500" /> Operational Pipeline
               </CardTitle>
-              <Badge variant="outline" className="rounded-lg font-black text-[10px] text-slate-400 px-3">
-                11 TOTAL STAGES
-              </Badge>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -205,62 +207,49 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {localTimeline.map((item, idx) => (
-                    <TableRow key={item._id} className="hover:bg-indigo-50/20 transition-colors border-slate-50">
-                      <TableCell className="pl-8 py-4">
-                        <div className="flex items-center gap-4">
-                          <span className="text-[10px] font-black text-slate-300 w-4">{idx + 1}</span>
-                          <span className="font-bold text-slate-700 capitalize text-sm">{item.stage.replace(/-/g, ' ')}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`text-[9px] font-black px-2.5 py-0.5 rounded-md uppercase ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                          item.status === 'in-progress' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-8">
-                        <select
-                          disabled={isUpdating}
-                          value={item.status}
-                          onChange={(e) => handleStatusChange(item._id, e.target.value)}
-                          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="rejected">Rejected</option>
-                        </select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {localTimeline.map((item, idx) => {
+                    // Smart disable logic: 
+                    // Disable if updating OR if any previous stage was rejected.
+                    // (idx > firstRejectedIndex) ensures the rejected dropdown itself is NOT disabled.
+                    const isCascadingDisabled = firstRejectedIndex !== -1 && idx > firstRejectedIndex;
+
+                    return (
+                      <TableRow key={item._id} className="hover:bg-indigo-50/20 transition-colors border-slate-50">
+                        <TableCell className="pl-8 py-4">
+                          <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-black text-slate-300 w-4">{idx + 1}</span>
+                            <span className="font-bold text-slate-700 capitalize text-sm">{item.stage.replace(/-/g, ' ')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-[9px] font-black px-2.5 py-0.5 rounded-md uppercase ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            item.status === 'in-progress' ? 'bg-amber-100 text-amber-700' :
+                              item.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                            {item.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-8">
+                          <select
+                            disabled={isUpdating || isCascadingDisabled}
+                            value={item.status}
+                            onChange={(e) => handleStatusChange(item._id || item.stage, e.target.value)}
+                            className={`h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 outline-none 
+                              ${(isUpdating || isCascadingDisabled) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-500'}`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="in-progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
-        </div>
-
-        {/* BOTTOM: DOCUMENTS */}
-        <div className="mt-8">
-          <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3 px-2">
-            <FileText className="text-indigo-500" /> Digital Dossier
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {(worker.documents || []).map(doc => (
-              <div key={doc._id} className="bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-500 transition-all">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="min-w-[40px] h-10 bg-slate-50 rounded-xl flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                    <FileText size={18} />
-                  </div>
-                  <p className="text-xs font-bold text-slate-700 truncate">{doc.name}</p>
-                </div>
-                <Button variant="ghost" size="icon" className="rounded-lg hover:bg-slate-100" onClick={() => window.open(`http://localhost:5000/${doc.path}`, '_blank')}>
-                  <ExternalLink size={14} />
-                </Button>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -284,14 +273,14 @@ function InfoRow({ icon, label, value, isCopyable }) {
 function StatusBadge({ status }) {
   const s = status?.toLowerCase();
   const variants = {
-    deployed: "bg-emerald-500 text-white ring-4 ring-emerald-50",
+    active: "bg-emerald-600 text-white ring-4 ring-emerald-50",
     rejected: "bg-rose-500 text-white ring-4 ring-rose-50",
     processing: "bg-amber-500 text-white ring-4 ring-amber-50",
     pending: "bg-slate-200 text-slate-600 ring-4 ring-slate-50"
   };
   return (
     <Badge className={`${variants[s] || variants.pending} border-none px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest flex gap-2 items-center shadow-lg`}>
-      {s === 'deployed' && <CheckCircle2 className="h-3 w-3" />}
+      {s === 'active' && <CheckCircle2 className="h-3 w-3" />}
       {status || 'PENDING'}
     </Badge>
   );
