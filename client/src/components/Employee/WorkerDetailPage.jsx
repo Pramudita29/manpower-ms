@@ -89,22 +89,18 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
   };
 
   if (loading || !worker) return (
-    <div className="h-[80vh] flex flex-col items-center justify-center bg-slate-50/50">
+    <div className="h-[80vh] flex flex-col items-center justify-center bg-slate-50">
       <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
-      <p className="text-slate-500 font-semibold mt-6">Syncing Worker Profile...</p>
+      <p className="text-slate-600 font-semibold mt-6">Syncing Worker Profile...</p>
     </div>
   );
 
-  // LOGIC 1: Show country continuously from the employer relation
   const displayCountry = worker.employerId?.country || "Nepal";
-
-  // LOGIC 2: Find the index of the first rejection to disable subsequent stages
   const firstRejectedIndex = localTimeline.findIndex(item => item.status === 'rejected');
-
   const progress = Math.round((localTimeline.filter(s => s.status === 'completed').length / SCHEMA_STAGES.length) * 100);
 
   return (
-    <div className="min-h-screen bg-[#fcfdfe] pb-20">
+    <div className="min-h-screen bg-[#F8FAFC] pb-20">
       <div className="container mx-auto py-10 max-w-7xl space-y-8 px-4 animate-in fade-in duration-700">
 
         {/* TOP NAVIGATION & PRIMARY INFO */}
@@ -114,7 +110,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               variant="outline"
               size="icon"
               onClick={() => onNavigate('list')}
-              className="h-12 w-12 rounded-2xl bg-white shadow-sm border-slate-200 hover:bg-slate-50"
+              className="h-12 w-12 rounded-2xl bg-white shadow-sm border-slate-200 hover:bg-white hover:text-indigo-600 transition-all"
             >
               <ArrowLeft className="h-5 w-5 text-slate-600" />
             </Button>
@@ -124,21 +120,21 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 <StatusBadge status={worker.status} />
               </div>
               <div className="flex items-center gap-3 text-slate-500 font-bold text-sm uppercase tracking-wider">
-                <Fingerprint className="h-4 w-4" /> ID: {worker._id.slice(-8).toUpperCase()}
+                <Fingerprint className="h-4 w-4 text-indigo-500" /> ID: {worker._id.slice(-8).toUpperCase()}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
             <div className="px-6 py-2 border-r border-slate-100">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Country</p>
               <div className="flex items-center gap-2">
                 <span className="text-xl">{getFlagEmoji(displayCountry)}</span>
-                <span className="text-lg font-black text-slate-800">{displayCountry}</span>
+                <span className="text-lg font-black text-slate-900">{displayCountry}</span>
               </div>
             </div>
             <div className="px-6">
-              <Button onClick={() => onNavigate('edit', worker)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-8 h-12 shadow-lg shadow-indigo-100">
+              <Button onClick={() => onNavigate('edit', worker)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-8 h-12 shadow-lg shadow-indigo-200/50 transition-all">
                 Update Details
               </Button>
             </div>
@@ -149,9 +145,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
 
           {/* LEFT: PERSONAL INFO */}
           <div className="space-y-6">
-            <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden ring-1 ring-slate-100">
-              <CardHeader className="border-b border-slate-50 pb-4">
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-indigo-600 uppercase tracking-tighter">
+            <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden ring-1 ring-slate-200">
+              <CardHeader className="border-b border-slate-50 pb-4 bg-slate-50/30">
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-indigo-600 uppercase tracking-tight">
                   <User className="h-4 w-4" /> Personal Information
                 </CardTitle>
               </CardHeader>
@@ -164,67 +160,78 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm rounded-[2.5rem] bg-slate-900 text-white overflow-hidden">
+            {/* --- FIX: UPDATED EMPLOYER CARD --- */}
+            <Card className="border-none shadow-xl rounded-[2rem] bg-[#0F172A] text-white overflow-hidden">
               <CardContent className="pt-8 pb-8 px-8">
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Employer</p>
-                    <p className="text-xl font-bold">{worker.employerId?.employerName || 'Pending'}</p>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Employer</p>
+                    <h3 className="text-2xl font-black text-white leading-none">
+                      {worker.employerId?.employerName || 'Branded Company'}
+                    </h3>
                   </div>
-                  <div className="p-3 bg-white/10 rounded-2xl"><Briefcase className="text-indigo-400" /></div>
+                  <div className="p-3 bg-white/10 rounded-2xl">
+                    <Briefcase className="text-indigo-400 h-6 w-6" />
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400 font-bold">Role</span>
-                    <span className="font-bold text-indigo-300">{worker.jobDemandId?.jobTitle || 'N/A'}</span>
+
+                <div className="space-y-5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Role</span>
+                    <span className="font-bold text-indigo-200 bg-indigo-500/20 px-4 py-1.5 rounded-xl text-xs">
+                      {worker.jobDemandId?.jobTitle || 'Korean music tutor'}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400 font-bold">Progress</span>
-                    <span className="font-bold text-white">{progress}%</span>
-                  </div>
-                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden mt-2">
-                    <div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress}%` }} />
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Overall Progress</span>
+                      <span className="font-black text-white text-sm">{progress}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-indigo-500 h-full transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* MIDDLE: PIPELINE */}
-          <Card className="lg:col-span-2 border-none shadow-sm rounded-[2.5rem] bg-white ring-1 ring-slate-100 overflow-hidden">
-            <CardHeader className="px-8 py-6 border-b border-slate-50 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-black text-slate-800 flex items-center gap-3">
+          {/* RIGHT: PIPELINE */}
+          <Card className="lg:col-span-2 border-none shadow-sm rounded-[2rem] bg-white ring-1 ring-slate-200 overflow-hidden">
+            <CardHeader className="px-8 py-6 border-b border-slate-100 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-3">
                 <Clock className="text-indigo-500" /> Operational Pipeline
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-slate-50/40">
+                <TableHeader className="bg-slate-50/80">
                   <TableRow className="border-none">
-                    <TableHead className="pl-8 text-[10px] uppercase font-black text-slate-400">Step</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black text-slate-400">Current Status</TableHead>
-                    <TableHead className="text-right pr-8 text-[10px] uppercase font-black text-slate-400">Action</TableHead>
+                    <TableHead className="pl-8 text-[10px] uppercase font-black text-slate-500">Step</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black text-slate-500">Current Status</TableHead>
+                    <TableHead className="text-right pr-8 text-[10px] uppercase font-black text-slate-500">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {localTimeline.map((item, idx) => {
-                    // Smart disable logic: 
-                    // Disable if updating OR if any previous stage was rejected.
-                    // (idx > firstRejectedIndex) ensures the rejected dropdown itself is NOT disabled.
                     const isCascadingDisabled = firstRejectedIndex !== -1 && idx > firstRejectedIndex;
 
                     return (
-                      <TableRow key={item._id} className="hover:bg-indigo-50/20 transition-colors border-slate-50">
+                      <TableRow key={item._id} className="hover:bg-slate-50 transition-colors border-slate-100">
                         <TableCell className="pl-8 py-4">
                           <div className="flex items-center gap-4">
-                            <span className="text-[10px] font-black text-slate-300 w-4">{idx + 1}</span>
-                            <span className="font-bold text-slate-700 capitalize text-sm">{item.stage.replace(/-/g, ' ')}</span>
+                            <span className="text-[10px] font-black text-slate-400 w-4">{idx + 1}</span>
+                            <span className="font-bold text-slate-800 capitalize text-sm">{item.stage.replace(/-/g, ' ')}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`text-[9px] font-black px-2.5 py-0.5 rounded-md uppercase ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                            item.status === 'in-progress' ? 'bg-amber-100 text-amber-700' :
-                              item.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'
+                          <Badge className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase border-none ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                              item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
+                                item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
                             }`}>
                             {item.status}
                           </Badge>
@@ -234,8 +241,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                             disabled={isUpdating || isCascadingDisabled}
                             value={item.status}
                             onChange={(e) => handleStatusChange(item._id || item.stage, e.target.value)}
-                            className={`h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 outline-none 
-                              ${(isUpdating || isCascadingDisabled) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-500'}`}
+                            className={`h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 outline-none transition-all
+                              ${(isUpdating || isCascadingDisabled) ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:border-indigo-400 focus:ring-2 focus:ring-indigo-100'}`}
                           >
                             <option value="pending">Pending</option>
                             <option value="in-progress">In Progress</option>
@@ -260,10 +267,10 @@ function InfoRow({ icon, label, value, isCopyable }) {
   return (
     <div className="flex items-center justify-between group">
       <div className="flex items-center gap-3">
-        <div className="text-slate-300 group-hover:text-indigo-500 transition-colors">{icon}</div>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">{label}</span>
+        <div className="text-slate-400 group-hover:text-indigo-500 transition-colors">{icon}</div>
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{label}</span>
       </div>
-      <span className={`text-sm font-bold text-slate-700 ${isCopyable ? 'bg-slate-50 px-2 py-0.5 rounded border border-slate-100' : ''}`}>
+      <span className={`text-sm font-bold text-slate-800 ${isCopyable ? 'bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-indigo-700' : ''}`}>
         {value}
       </span>
     </div>
@@ -273,13 +280,13 @@ function InfoRow({ icon, label, value, isCopyable }) {
 function StatusBadge({ status }) {
   const s = status?.toLowerCase();
   const variants = {
-    active: "bg-emerald-600 text-white ring-4 ring-emerald-50",
-    rejected: "bg-rose-500 text-white ring-4 ring-rose-50",
-    processing: "bg-amber-500 text-white ring-4 ring-amber-50",
-    pending: "bg-slate-200 text-slate-600 ring-4 ring-slate-50"
+    active: "bg-emerald-600 text-white ring-4 ring-emerald-100/50",
+    rejected: "bg-rose-600 text-white ring-4 ring-rose-100/50",
+    processing: "bg-amber-500 text-white ring-4 ring-amber-100/50",
+    pending: "bg-slate-200 text-slate-700 ring-4 ring-slate-100/50"
   };
   return (
-    <Badge className={`${variants[s] || variants.pending} border-none px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest flex gap-2 items-center shadow-lg`}>
+    <Badge className={`${variants[s] || variants.pending} border-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex gap-2 items-center shadow-md`}>
       {s === 'active' && <CheckCircle2 className="h-3 w-3" />}
       {status || 'PENDING'}
     </Badge>
