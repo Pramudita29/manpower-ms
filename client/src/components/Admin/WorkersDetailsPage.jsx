@@ -102,7 +102,7 @@ export function WorkerDetailsPage({ worker, onBack }) {
                 {/* LEFT COLUMN: PROFESSIONAL INFO & DOCUMENTS (SWAPPED) */}
                 <div className="col-span-12 lg:col-span-4 space-y-6">
                     {/* Origin/Destination Card */}
-                    <Card className="border-none shadow-xl rounded-[2rem] bg-indigo-700 text-white overflow-hidden relative min-h-[140px] flex items-center">
+                    <Card className="border-none shadow-xl rounded-[2rem] bg-blue-700 text-white overflow-hidden relative min-h-[140px] flex items-center">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
                             <PlaneTakeoff size={80} />
                         </div>
