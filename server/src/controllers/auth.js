@@ -77,7 +77,7 @@ const register = async (req, res) => {
     } finally { session.endSession(); }
 };
 
-// --- 2. REGISTER EMPLOYEE ---
+// --- 2. REGISTER EMPLOYEE (UPDATED WITH EMAIL LOGIC) ---
 const registerEmployee = async (req, res) => {
     const { fullName, email, password, contactNumber, address } = req.body;
     const cleanPhone = normalizeIdentifier(contactNumber);
@@ -97,15 +97,38 @@ const registerEmployee = async (req, res) => {
             companyId: req.user.companyId
         });
 
-        // 1. Send SMS
-        sendNepaliSMS(cleanPhone, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
-
-        // 2. SEND EMAIL (The missing part)
-        if (cleanEmail) {
-            await sendWelcomeEmail(cleanEmail, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
+        // 1. Send SMS Notification
+        try {
+            await sendNepaliSMS(cleanPhone, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
+        } catch (smsErr) {
+            console.error("SMS Error:", smsErr.message);
         }
 
-        res.status(201).json({ success: true, msg: 'Employee registered.' });
+        // 2. Send Email Notification (The fixed part)
+        if (cleanEmail) {
+            try {
+                await sendEmail({
+                    to: cleanEmail,
+                    subject: "Staff Account Created",
+                    html: `
+                        <div style="font-family: sans-serif; border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px;">
+                            <h2 style="color: #2563eb;">Welcome, ${fullName}!</h2>
+                            <p>Your employee account has been registered successfully.</p>
+                            <p><strong>Login ID:</strong> ${contactNumber}</p>
+                            <p><strong>Password:</strong> ${password}</p>
+                            <br/>
+                            <p style="font-size: 12px; color: #64748b;">Please login to your dashboard to get started.</p>
+                        </div>
+                    `
+                });
+            } catch (emailErr) {
+                console.error("Email Error:", emailErr.message);
+                // We do not throw error here to ensure the client gets a success msg 
+                // because the user was already created in DB.
+            }
+        }
+
+        res.status(201).json({ success: true, msg: 'Employee registered successfully.' });
     } catch (e) {
         res.status(500).json({ msg: e.message });
     }
@@ -134,19 +157,18 @@ const getAllEmployees = async (req, res) => {
     }
 };
 
-// --- 4. GET SINGLE EMPLOYEE DETAILS (Data Isolation Fix) ---
+// --- 4. GET SINGLE EMPLOYEE DETAILS ---
 const getSingleEmployeeDetails = async (req, res) => {
     try {
-        const { id } = req.params; // The ID of the employee (e.g. Hari)
+        const { id } = req.params;
 
         const employee = await User.findById(id).select('-password');
         if (!employee) return res.status(404).json({ msg: 'Employee not found' });
 
-        // Fetch data strictly created by this employee
         const [workers, demands, employers] = await Promise.all([
             Worker.find({ createdBy: id }).sort({ createdAt: -1 }),
             JobDemand.find({ createdBy: id }).sort({ createdAt: -1 }),
-            Employer.find({ createdBy: id }).sort({ createdAt: -1 }) // Added Employers
+            Employer.find({ createdBy: id }).sort({ createdAt: -1 })
         ]);
 
         res.status(200).json({
@@ -155,7 +177,7 @@ const getSingleEmployeeDetails = async (req, res) => {
                 ...employee.toObject(),
                 workers,
                 demands,
-                employers // Now returning all 3 lists
+                employers
             }
         });
     } catch (error) {
