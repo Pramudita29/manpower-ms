@@ -87,7 +87,7 @@ const registerEmployee = async (req, res) => {
         const existing = await User.findOne({ contactNumber: cleanPhone });
         if (existing) return res.status(400).json({ msg: `Phone number already exists.` });
 
-        await User.create({
+        const newUser = await User.create({
             fullName,
             email: cleanEmail,
             password,
@@ -97,7 +97,14 @@ const registerEmployee = async (req, res) => {
             companyId: req.user.companyId
         });
 
+        // 1. Send SMS
         sendNepaliSMS(cleanPhone, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
+
+        // 2. SEND EMAIL (The missing part)
+        if (cleanEmail) {
+            await sendWelcomeEmail(cleanEmail, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
+        }
+
         res.status(201).json({ success: true, msg: 'Employee registered.' });
     } catch (e) {
         res.status(500).json({ msg: e.message });
