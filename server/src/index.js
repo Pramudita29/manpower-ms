@@ -1,6 +1,4 @@
-// D:\manpower-ms\server\src\index.js
-require('dotenv').config(); // ✅ FIXED: Load variables before everything else
-
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -14,6 +12,7 @@ const workerRoutes = require('./routes/workerRoutes');
 const subAgentRoutes = require('./routes/subAgentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const settingsRoutes = require('./routes/settingsRoutes'); // ✅ ADDED
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,6 +36,7 @@ app.use('/api/workers', workerRoutes);
 app.use('/api/sub-agents', subAgentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/settings', settingsRoutes); // ✅ ADDED
 
 // Health Check
 app.get('/', (req, res) => {
