@@ -8,7 +8,7 @@ const NoteSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        enum: ['general', 'employer', 'worker', 'job-demand', 'sub-agent', 'reminder'],
+        enum: ['general', 'employer', 'worker', 'job-demand', 'sub-agent', 'reminder', 'urgent'],
         default: 'general'
     },
     targetDate: {
