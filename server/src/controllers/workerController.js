@@ -1,18 +1,36 @@
 const Worker = require('../models/Worker');
+const User = require('../models/User');
+const Company = require('../models/Company');
 const SubAgent = require('../models/SubAgent');
 const JobDemand = require('../models/JobDemand');
 const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
-const fs = require('fs'); // Added to support physical file cleanup if needed
 
 /**
- * @desc    Get all Workers
+ * HELPER: Mask Passport Number
+ * Shows first 3 characters and replaces rest with 'x'
+ */
+const maskPassport = (passport) => {
+  if (!passport) return "";
+  return passport.substring(0, 3) + "x".repeat(passport.length - 3);
+};
+
+/**
+ * @desc Get all Workers (With Privacy Logic)
  */
 exports.getAllWorkers = async (req, res) => {
   try {
     const { companyId, userId, role } = req.user;
     let filter = { companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+
+    // Data Isolation: Employees only see what they created
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
+
+    // Check Company Privacy Settings
+    const company = await Company.findById(companyId).select('settings');
+    const isPrivacyEnabled = company?.settings?.isPassportPrivate && role === 'employee';
 
     const workers = await Worker.find(filter)
       .populate('employerId', 'name employerName companyName country')
@@ -22,14 +40,24 @@ exports.getAllWorkers = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(StatusCodes.OK).json({ success: true, count: workers.length, data: workers });
+    // Apply Masking if privacy is ON and user is an employee
+    const processedWorkers = workers.map(worker => ({
+      ...worker,
+      passportNumber: isPrivacyEnabled ? maskPassport(worker.passportNumber) : worker.passportNumber
+    }));
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      count: processedWorkers.length,
+      data: processedWorkers
+    });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Get Worker by ID
+ * @desc Get Worker by ID (With Privacy Logic)
  */
 exports.getWorkerById = async (req, res) => {
   try {
@@ -37,8 +65,11 @@ exports.getWorkerById = async (req, res) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid Worker ID format' });
+      return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Invalid Worker ID' });
     }
+
+    const company = await Company.findById(companyId).select('settings');
+    const isPrivacyEnabled = company?.settings?.isPassportPrivate && role === 'employee';
 
     let filter = { _id: id, companyId };
     if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
@@ -50,103 +81,31 @@ exports.getWorkerById = async (req, res) => {
       .populate('createdBy', 'fullName')
       .lean();
 
-    if (!worker) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
+
+    // Apply masking for single view
+    if (isPrivacyEnabled) {
+      worker.passportNumber = maskPassport(worker.passportNumber);
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: worker });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Update Worker Info & Sync Documents (Supports Deletion & Labels)
- */
-exports.updateWorker = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { companyId, userId, role } = req.user;
-
-    // 1. Check Permissions
-    let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
-
-    const oldWorker = await Worker.findOne(filter);
-    if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
-
-    // 2. Parse Body Data
-    const { existingDocuments, ...otherUpdates } = req.body;
-    let updateData = { ...otherUpdates };
-
-    if (updateData.dob) updateData.dob = new Date(updateData.dob);
-
-    // 3. Handle Document Synchronization (The Fix)
-    // Parse the list of documents to keep (sent from frontend)
-    let updatedDocsList = [];
-    if (existingDocuments) {
-      updatedDocsList = JSON.parse(existingDocuments);
-    }
-
-    // Handle New File Uploads with their specific Labels and Categories
-    if (req.files && req.files.length > 0) {
-      const newDocs = req.files.map((file, index) => {
-        // Get meta data sent for this specific file index
-        const meta = req.body[`docMeta_${index}`] ? JSON.parse(req.body[`docMeta_${index}`]) : {};
-
-        return {
-          name: meta.name || file.originalname, // The Custom Label
-          category: meta.category || 'Other',   // The Selected Category
-          fileName: file.filename,
-          fileSize: (file.size / 1024).toFixed(2) + ' KB',
-          path: file.path,
-          status: 'pending',
-          uploadedAt: new Date()
-        };
-      });
-
-      // Merge kept documents with newly uploaded ones
-      updatedDocsList = [...updatedDocsList, ...newDocs];
-    }
-
-    // Set the final document array (this overwrites the old one, enabling deletion)
-    updateData.documents = updatedDocsList;
-
-    // 4. Update Worker
-    const updatedWorker = await Worker.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    )
-      .populate('employerId', 'name employerName companyName country')
-      .populate('subAgentId', 'name')
-      .populate('jobDemandId', 'jobTitle');
-
-    // 5. Sync Job Demand references if changed
-    if (updateData.jobDemandId && updateData.jobDemandId.toString() !== oldWorker.jobDemandId?.toString()) {
-      if (oldWorker.jobDemandId) await JobDemand.findByIdAndUpdate(oldWorker.jobDemandId, { $pull: { workers: id } });
-      await JobDemand.findByIdAndUpdate(updateData.jobDemandId, { $addToSet: { workers: id } });
-    }
-
-    res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
-  } catch (error) {
-    console.error("Update Worker Error:", error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc    Add Worker with Initial Stages and Uploads
+ * @desc Add Worker (With Admin & Employee Notifications)
  */
 exports.addWorker = async (req, res) => {
   try {
-    const { passportNumber, jobDemandId } = req.body;
+    const { passportNumber, jobDemandId, name } = req.body;
     const { companyId, userId } = req.user;
 
     const existingWorker = await Worker.findOne({ passportNumber, companyId });
-    if (existingWorker) return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Passport number already exists' });
+    if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
 
-    // Handle Initial Document Uploads
+    // Document handling logic
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
       initialDocs = req.files.map((file, index) => {
@@ -181,65 +140,108 @@ exports.addWorker = async (req, res) => {
     });
 
     await newWorker.save();
-    if (jobDemandId) await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
+
+    // Update Job Demand
+    if (jobDemandId) {
+      await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
+    }
+
+    // --- REQUIREMENT 6: NOTIFICATIONS ---
+    // Find users who have "newWorker" notifications toggled ON
+    const notifyList = await User.find({
+      companyId,
+      "notificationSettings.newWorker": true,
+      isBlocked: false
+    }).select('email contactNumber fullName notificationSettings');
+
+    // Logic: If notificationSettings.enabled is off globally, this loop skips or you handle it here
+    notifyList.forEach(user => {
+      if (user.notificationSettings.enabled) {
+        console.log(`[Notification] To: ${user.fullName} | Msg: New worker ${name} added.`);
+        // Here you would call your sendEmail() or sendNepaliSMS() functions
+      }
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
-  } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc    Update Stage & Auto-calculate Overall Status
- */
-exports.updateWorkerStage = async (req, res) => {
-  try {
-    const { id, stageId } = req.params;
-    const { status } = req.body;
-    const { companyId } = req.user;
-
-    const worker = await Worker.findOne({ _id: id, companyId });
-    if (!worker) return res.status(404).json({ success: false, message: 'Worker not found' });
-
-    let stage = worker.stageTimeline.find(s => (s._id && s._id.toString() === stageId) || s.stage === stageId);
-
-    if (!stage) {
-      worker.stageTimeline.push({ stage: stageId, status: status || 'pending', date: new Date() });
-    } else {
-      stage.status = status;
-      stage.date = new Date();
-    }
-
-    // Logic Engine for Overall Status
-    const timeline = worker.stageTimeline;
-    const completedCount = timeline.filter(s => s.status === 'completed').length;
-    const anyRejected = timeline.some(s => s.status === 'rejected');
-    const anyInProgress = timeline.some(s => s.status === 'in-progress' || s.status === 'completed');
-
-    if (anyRejected) {
-      worker.status = 'rejected';
-    } else if (completedCount >= 11) {
-      worker.status = 'deployed';
-    } else if (anyInProgress) {
-      worker.status = 'processing';
-    } else {
-      worker.status = 'pending';
-    }
-
-    const lastDone = [...timeline].reverse().find(s => s.status === 'completed');
-    if (lastDone) worker.currentStage = lastDone.stage;
-
-    await worker.save();
-
-    const updatedWorker = await Worker.findById(id).populate('employerId subAgentId jobDemandId').lean();
-    res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Delete Worker
+ * @desc Update Worker
+ */
+exports.updateWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { companyId, userId, role } = req.user;
+
+    let filter = { _id: id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+
+    const oldWorker = await Worker.findOne(filter);
+    if (!oldWorker) return res.status(404).json({ msg: 'Worker not found' });
+
+    const { existingDocuments, ...otherUpdates } = req.body;
+    let updateData = { ...otherUpdates };
+
+    // Document Syncing Logic
+    let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : [];
+    if (req.files && req.files.length > 0) {
+      const newDocs = req.files.map((file, index) => {
+        const meta = req.body[`docMeta_${index}`] ? JSON.parse(req.body[`docMeta_${index}`]) : {};
+        return {
+          name: meta.name || file.originalname,
+          category: meta.category || 'Other',
+          fileName: file.filename,
+          path: file.path,
+          uploadedAt: new Date()
+        };
+      });
+      updatedDocsList = [...updatedDocsList, ...newDocs];
+    }
+    updateData.documents = updatedDocsList;
+
+    const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true })
+      .populate('employerId jobDemandId subAgentId');
+
+    res.status(200).json({ success: true, data: updatedWorker });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Update Stage
+ */
+exports.updateWorkerStage = async (req, res) => {
+  try {
+    const { id, stageId } = req.params;
+    const { status } = req.body;
+
+    const worker = await Worker.findOne({ _id: id, companyId: req.user.companyId });
+    if (!worker) return res.status(404).json({ msg: 'Worker not found' });
+
+    let stage = worker.stageTimeline.find(s => s.stage === stageId || (s._id && s._id.toString() === stageId));
+    if (stage) {
+      stage.status = status;
+      stage.date = new Date();
+    }
+
+    // Auto-calculate worker status
+    const completed = worker.stageTimeline.filter(s => s.status === 'completed').length;
+    if (completed >= 11) worker.status = 'deployed';
+    else if (completed > 0) worker.status = 'processing';
+
+    await worker.save();
+    res.status(200).json({ success: true, data: worker });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Delete Worker
  */
 exports.deleteWorker = async (req, res) => {
   try {
@@ -248,12 +250,14 @@ exports.deleteWorker = async (req, res) => {
     if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const worker = await Worker.findOneAndDelete(filter);
-    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+    if (!worker) return res.status(404).json({ msg: 'Worker not found' });
 
-    if (worker.jobDemandId) await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
+    if (worker.jobDemandId) {
+      await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
+    }
 
-    res.status(StatusCodes.OK).json({ success: true, message: 'Worker removed successfully' });
+    res.status(200).json({ success: true, msg: 'Worker deleted' });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
