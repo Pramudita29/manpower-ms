@@ -132,4 +132,4 @@ export function Sidebar({ onLogout }) {
             </div>
         </div>
     );
-}
+}  
