@@ -25,6 +25,18 @@ const CompanySchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    // Add these to CompanySchema
+    settings: {
+        isPassportPrivate: { type: Boolean, default: false }
+    },
+    billing: {
+        plan: { type: String, enum: ['annual', 'monthly', 'trial'], default: 'trial' },
+        startDate: { type: Date, default: Date.now },
+        expiryDate: {
+            type: Date,
+            default: () => new Date(+new Date() + 365 * 24 * 60 * 60 * 1000) // Default 1 year
+        }
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Company', CompanySchema);
