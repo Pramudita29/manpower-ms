@@ -28,6 +28,7 @@ const normalizeIdentifier = (id) => {
 // --- 1. REGISTER ADMIN & COMPANY ---
 const register = async (req, res) => {
     const { agencyName, fullAddress, fullName, email, contactNumber, password } = req.body;
+
     if (!agencyName || !fullName || !contactNumber || !fullAddress || !password) {
         return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'All fields required.' });
     }
@@ -38,6 +39,7 @@ const register = async (req, res) => {
 
     const session = await mongoose.startSession();
     session.startTransaction();
+
     try {
         const existingUser = await User.findOne({ contactNumber: cleanPhone }).session(session);
         if (existingUser) {
@@ -46,35 +48,69 @@ const register = async (req, res) => {
         }
 
         const adminId = new mongoose.Types.ObjectId();
+        const companyId = new mongoose.Types.ObjectId();
         const logoBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
+        // Calculate 1 year from now
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+        // 1. Create the Company using your specific Schema structure
         const company = await Company.create([{
+            _id: companyId,
             name: agencyName,
-            adminId,
-            logo: logoBase64
+            adminId: adminId,
+            logo: logoBase64,
+            billing: {
+                plan: 'trial', // or 'annual' based on your logic
+                startDate: new Date(),
+                expiryDate: oneYearFromNow // Aligned with your Company.js model
+            },
+            settings: {
+                isPassportPrivate: false // Default for your Passport Masking
+            }
         }], { session });
 
+        const userCount = await User.countDocuments({}).session(session);
+        const assignedRole = userCount === 0 ? 'super_admin' : 'admin';
+
+        // 2. Create the Admin User
         const user = await User.create([{
             _id: adminId,
             fullName,
             email: cleanEmail,
             password,
-            role: (await User.countDocuments({}).session(session)) === 0 ? 'super_admin' : 'admin',
+            role: assignedRole,
             contactNumber: cleanPhone,
             address: fullAddress,
-            companyId: company[0]._id
+            companyId: companyId,
+            notificationSettings: {
+                enabled: true,
+                newJob: true,
+                newEmployer: true,
+                newWorker: true,
+                newSubAgent: true
+            }
         }], { session });
 
         await session.commitTransaction();
+
         res.status(StatusCodes.CREATED).json({
             success: true,
-            user: { fullName: user[0].fullName, role: user[0].role },
+            user: {
+                _id: user[0]._id,
+                fullName: user[0].fullName,
+                role: user[0].role
+            },
             token: user[0].createJWT()
         });
+
     } catch (error) {
         await session.abortTransaction();
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });
-    } finally { session.endSession(); }
+    } finally {
+        session.endSession();
+    }
 };
 
 // --- 2. REGISTER EMPLOYEE (UPDATED WITH EMAIL LOGIC) ---
