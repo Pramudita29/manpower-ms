@@ -1,25 +1,23 @@
 const Employer = require('../models/Employers');
 const JobDemand = require('../models/JobDemand');
 const Worker = require('../models/Worker');
+const User = require('../models/User'); // <--- ADD THIS LINE
 const { StatusCodes } = require('http-status-codes');
 
 // @desc    Get all employers for a specific company (List View with Stats)
 exports.getEmployers = async (req, res) => {
     try {
-        const { companyId, userId, role } = req.user;
-        const { view } = req.query;
+        // companyId is extracted from the auth middleware (JWT)
+        const { companyId } = req.user;
 
+        // Change: We only filter by companyId. 
+        // This ensures any employee of "Company A" sees all "Company A" employers.
         let filter = { companyId };
 
-        if (role !== 'admin' && view !== 'all') {
-            filter.createdBy = userId;
-        }
-
-        // UPDATED: Added populate for the two virtual count fields
         const employers = await Employer.find(filter)
             .populate('createdBy', 'fullName')
-            .populate('totalJobDemands') // <--- This fixes the 0 Demands
-            .populate('totalHires')      // <--- This fixes the 0 Hires
+            .populate('totalJobDemands')
+            .populate('totalHires')
             .sort({ employerName: 1 });
 
         return res.status(StatusCodes.OK).json({
@@ -80,7 +78,7 @@ exports.createEmployer = async (req, res) => {
             contact,
             address,
             notes,
-            createdBy: req.user.userId,
+            createdBy: req.user._id || req.user.userId || req.user.id, // Try these variations
             companyId: req.user.companyId
         });
 
