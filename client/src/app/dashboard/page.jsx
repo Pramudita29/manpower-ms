@@ -7,10 +7,13 @@ export default function DashboardRedirect() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
+        const role = localStorage.getItem('role'); // Updated key to match Login.jsx
+        const userJson = localStorage.getItem('user');
+        const user = userJson ? JSON.parse(userJson) : null;
 
-        // 1. If not logged in, go to login
-        if (!token) {
+        // 1. If not logged in OR if user is restricted, clear and go to login
+        if (!token || user?.isBlocked) {
+            localStorage.clear();
             router.push('/login');
             return;
         }
@@ -23,12 +26,10 @@ export default function DashboardRedirect() {
         } else if (role === 'super_admin') {
             router.push('/dashboard/super-admin');
         } else {
-            // Fallback if role is undefined
             router.push('/login');
         }
     }, [router]);
 
-    // Show a simple loading state while redirecting
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="flex flex-col items-center gap-4">

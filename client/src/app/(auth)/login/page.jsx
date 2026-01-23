@@ -1,9 +1,9 @@
 "use client";
-
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { LoginPage } from '../../../components/LoginPage';
 
 const API_URL = 'http://localhost:5000/api/auth/login';
@@ -21,6 +21,12 @@ export default function Login() {
             const response = await axios.post(API_URL, { identifier, password });
             const { token, user } = response.data;
 
+            // --- RESTRICTION CHECK ---
+            if (user.isBlocked) {
+                toast.error("Access Denied: Your account is restricted.");
+                throw new Error("Your account has been restricted. Please contact your administrator.");
+            }
+
             const actualRole = user.role === 'super_admin' ? 'admin' : user.role;
 
             if (actualRole !== selectedRole) {
@@ -31,11 +37,10 @@ export default function Login() {
             // --- STORAGE SYNC ---
             localStorage.setItem('token', token);
             localStorage.setItem('userId', user._id);
-            localStorage.setItem('role', actualRole); // Key: 'role'
-            localStorage.setItem('fullName', user.fullName); // Save name for dashboard
+            localStorage.setItem('role', actualRole);
+            localStorage.setItem('fullName', user.fullName);
             localStorage.setItem('user', JSON.stringify(user));
 
-            // Set Cookies for Server-side/Middleware compatibility
             Cookies.set('token', token, { expires: 7, path: '/' });
             Cookies.set('role', actualRole, { expires: 7, path: '/' });
 

@@ -3,6 +3,7 @@
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast'; // Added for feedback
 
 // Components
 import { DashboardLayout } from '../../../components/DashboardLayout';
@@ -12,23 +13,27 @@ export default function EmployeePage() {
     const router = useRouter();
     const [userData, setUserData] = useState({ fullName: '', role: '' });
     const [isReady, setIsReady] = useState(false);
+    const [isBlocked, setIsBlocked] = useState(false); // Added Blocked State
 
     useEffect(() => {
-        // 1. Get auth data from localStorage
+        // 1. Get auth data
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('role');
         const fullName = localStorage.getItem('fullName');
+        const userJson = localStorage.getItem('user');
+        const user = userJson ? JSON.parse(userJson) : null;
 
-        // 2. DEBUGGER: Check console if navigation fails
-        console.group("Employee Auth Debugger");
-        console.log("Token Present:", !!token);
-        console.log("Role Found:", role);
-        console.log("Full Name:", fullName);
-        console.groupEnd();
+        // 2. Security Check: Blocked User Verification
+        // If the user object in local storage says they are blocked, kick them out immediately
+        if (user?.isBlocked) {
+            console.error("⛔ ACCESS RESTRICTED: Account is blocked.");
+            setIsBlocked(true);
+            handleLogout();
+            return;
+        }
 
-        // 3. Security Check: Must have token AND be an employee
+        // 3. Standard Auth Check
         if (!token || role !== 'employee') {
-            console.error("⛔ AUTH DENIED: Redirecting to /login", { tokenExist: !!token, role });
             router.replace('/login');
             return;
         }
@@ -37,34 +42,8 @@ export default function EmployeePage() {
         setIsReady(true);
     }, [router]);
 
-    /**
-     * UPDATED: handleNavigation
-     * This receives the 'workers' string from your ReportsPage
-     * and maps it to the correct Next.js route.
-     */
-    // In EmployeePage.tsx - handleNavigation
     const handleNavigation = (path) => {
         if (!path) return;
-
-        console.log("[NAVIGATION REQUEST]", { requestedPath: path });
-
-        // Use let instead of const
-        let targetPath = '/dashboard/employee'; // default fallback
-
-        // Option 1: Simple if-else chain (your current style)
-        if (path.includes('employer')) {
-            targetPath = '/dashboard/employee/employer';
-        } else if (path.includes('job-demand')) {
-            targetPath = '/dashboard/employee/job-demand';
-        } else if (path.includes('worker')) {
-            targetPath = '/dashboard/employee/worker';
-        } else if (path.includes('subagent') || path.includes('sub-agent')) {
-            targetPath = '/dashboard/employee/subagent';
-        } else if (path === 'reports' || path === 'dashboard') {
-            targetPath = '/dashboard/employee';
-        }
-
-        // Option 2: You can also combine with object mapping (cleaner)
         const routes = {
             'employer': '/dashboard/employee/employer',
             'job-demand': '/dashboard/employee/job-demand',
@@ -74,21 +53,29 @@ export default function EmployeePage() {
             'reports': '/dashboard/employee',
             'dashboard': '/dashboard/employee',
         };
-
-        // This line is now safe - we're not reassigning, just choosing
-        targetPath = routes[path] || targetPath; // keep the if-else result if no map match
-
-        console.log("→ Navigating to:", targetPath);
-
+        const targetPath = routes[path] || '/dashboard/employee';
         router.push(targetPath);
     };
 
     const handleLogout = () => {
+        toast.error("Session ended. Account restricted or logged out.");
         localStorage.clear();
         Cookies.remove('token', { path: '/' });
         Cookies.remove('role', { path: '/' });
-        router.push('/login');
+        router.replace('/login');
     };
+
+    // UI for Blocked Users
+    if (isBlocked) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-red-50">
+                <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-red-100">
+                    <h1 className="text-2xl font-bold text-red-600 mb-2">Account Restricted</h1>
+                    <p className="text-slate-500">Your access has been revoked by the administrator.</p>
+                </div>
+            </div>
+        );
+    }
 
     if (!isReady) {
         return (
@@ -109,9 +96,6 @@ export default function EmployeePage() {
             onNavigate={handleNavigation}
             onLogout={handleLogout}
         >
-            {/* EmployeeDashboard must pass the onNavigate prop 
-              down to the ReportsPage component inside it.
-            */}
             <EmployeeDashboard onNavigate={handleNavigation} />
         </DashboardLayout>
     );

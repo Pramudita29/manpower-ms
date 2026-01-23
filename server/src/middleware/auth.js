@@ -30,7 +30,7 @@ const protect = async (req, res, next) => {
         }
 
         req.user = {
-            _id: user._id, // Change 'userId' to '_id'
+            _id: user._id, // Use _id so User.findById(req.user._id) works!
             role: user.role,
             companyId: user.companyId
         };
