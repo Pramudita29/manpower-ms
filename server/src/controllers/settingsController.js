@@ -2,26 +2,30 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const { StatusCodes } = require('http-status-codes');
 
-// 1. Toggle Passport Privacy
-// FIX: Uses req.user.companyId to find the company reliably
+// controllers/settingsController.js
 const togglePassportPrivacy = async (req, res) => {
     try {
         const company = await Company.findById(req.user.companyId);
-        if (!company) return res.status(StatusCodes.NOT_FOUND).json({ msg: "Company not found" });
+        if (!company) return res.status(404).json({ msg: "Company not found" });
 
-        // Ensure settings object exists
-        if (!company.settings) company.settings = { isPassportPrivate: false };
+        // Ensure settings object exists in DB
+        if (!company.settings) {
+            company.settings = { isPassportPrivate: false };
+        }
 
+        // 1. Flip the value
         company.settings.isPassportPrivate = !company.settings.isPassportPrivate;
+
+        // 2. Save to Database
         await company.save();
 
-        // Return the full settings object so the frontend state matches
-        res.status(StatusCodes.OK).json({
+        // 3. CRITICAL: Return the EXACT key the frontend expects
+        res.status(200).json({
             success: true,
             isPassportPrivate: company.settings.isPassportPrivate
         });
     } catch (err) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Server error" });
+        res.status(500).json({ msg: "Server error" });
     }
 };
 
