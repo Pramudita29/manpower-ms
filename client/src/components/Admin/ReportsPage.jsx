@@ -1,4 +1,5 @@
 "use client";
+import Link from 'next/link'; // Import Link for navigation
 import {
     ArcElement,
     BarElement,
@@ -25,7 +26,7 @@ import {
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 
-// Register ChartJS modules once in the component file
+// Register ChartJS modules
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -42,7 +43,14 @@ ChartJS.register(
 export default function AdminReportsView({ data }) {
     const summary = data?.summary || {};
     const chartData = data?.chartData || [];
-    const topPerformers = data?.topPerformers || [];
+
+    // Safely calculate demand value
+    const demandCount = summary.totalDemands ?? summary.totalJobDemands ?? summary.totalJobDemand ?? 0;
+    
+    // Safely calculate success rate
+    const successRate = summary.totalWorkers > 0 
+        ? Math.round(((summary.deployed || 0) / summary.totalWorkers) * 100) 
+        : 0;
 
     return (
         <div className="p-8 space-y-8 bg-[#fbfcfd] min-h-screen">
@@ -51,7 +59,7 @@ export default function AdminReportsView({ data }) {
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tighter">AGENCY COMMAND CENTER</h1>
                     <p className="text-sm text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                        <Globe size={14} className="text-indigo-500" /> Operational Overview • Last 30 Days
+                        <Globe size={14} className="text-indigo-500" /> Operational Overview • Real-time Data
                     </p>
                 </div>
                 <button className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-black hover:scale-105 transition-all shadow-xl shadow-indigo-100">
@@ -59,12 +67,37 @@ export default function AdminReportsView({ data }) {
                 </button>
             </div>
 
-            {/* 2. Four Pillars KPI Strip */}
+            {/* 2. Four Pillars KPI Strip - Reordered to put Agents first */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <StatCard label="Intake" value={summary.totalWorkers || 0} sub="Total Workers Registered" icon={<Users className="text-blue-600" />} />
-                <StatCard label="Demand" value={summary.totalDemands || 0} sub="Open Job Vacancies" icon={<Building2 className="text-purple-600" />} />
-                <StatCard label="Velocity" value={`${Math.round(((summary.deployed || 0) / (summary.totalWorkers || 1)) * 100)}%`} sub="Deployment Success Rate" icon={<Activity className="text-emerald-600" />} />
-                <StatCard label="Agents" value={summary.activeSubAgents || 0} sub="Active Supply Network" icon={<Award className="text-amber-600" />} />
+                
+                <StatCard 
+                    label="Workers" 
+                    value={summary.totalWorkers || 0} 
+                    sub="Total Workers Registered" 
+                    icon={<Users className="text-blue-600" />} 
+                    href="/dashboard/tenant-admin/workers" // Update with your actual route
+                />
+                <StatCard 
+                    label="Demand" 
+                    value={demandCount} 
+                    sub="Open Job Vacancies" 
+                    icon={<Building2 className="text-purple-600" />} 
+                    href="/dashboard/tenant-admin/job-demand" // Update with your actual route
+                />
+                <StatCard 
+                    label="Agents" 
+                    value={summary.activeSubAgents || 0} 
+                    sub="Active Supply Network" 
+                    icon={<Award className="text-amber-600" />} 
+                    href="/dashboard/tenant-admin/sub-agents" // Update with your actual route
+                />
+                <StatCard 
+                    label="Velocity" 
+                    value={`${successRate}%`} 
+                    sub="Deployment Success Rate" 
+                    icon={<Activity className="text-emerald-600" />} 
+                    // No link for Velocity as it's a metric, not a list
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -81,14 +114,32 @@ export default function AdminReportsView({ data }) {
                                 data={{
                                     labels: chartData.map(d => d.date || ''),
                                     datasets: [
-                                        { label: 'Worker Intake', data: chartData.map(d => d.workers || 0), backgroundColor: '#4f46e5', borderRadius: 5 },
-                                        { label: 'Employer Demand', data: chartData.map(d => d.demands || 0), backgroundColor: '#e2e8f0', borderRadius: 5 }
+                                        { 
+                                            label: 'Worker Intake', 
+                                            data: chartData.map(d => d.workers || 0), 
+                                            backgroundColor: '#4f46e5', 
+                                            borderRadius: 5 
+                                        },
+                                        { 
+                                            label: 'Employer Demand', 
+                                            data: chartData.map(d => d.demands || 0), 
+                                            backgroundColor: '#e2e8f0', 
+                                            borderRadius: 5 
+                                        }
                                     ]
                                 }}
-                                options={{ maintainAspectRatio: false, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }}
+                                options={{ 
+                                    maintainAspectRatio: false, 
+                                    scales: { 
+                                        x: { grid: { display: false } }, 
+                                        y: { beginAtZero: true } 
+                                    } 
+                                }}
                             />
                         ) : (
-                            <div className="h-full flex items-center justify-center text-slate-300 italic text-sm">No trend data available</div>
+                            <div className="h-full flex items-center justify-center text-slate-300 italic text-sm">
+                                No trend data available.
+                            </div>
                         )}
                     </CardContent>
                 </Card>
@@ -112,7 +163,11 @@ export default function AdminReportsView({ data }) {
                                         hoverOffset: 10
                                     }]
                                 }}
-                                options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, cutout: '70%' }}
+                                options={{ 
+                                    maintainAspectRatio: false, 
+                                    plugins: { legend: { position: 'bottom' } }, 
+                                    cutout: '70%' 
+                                }}
                             />
                         </div>
                         <div className="mt-6 space-y-3">
@@ -128,18 +183,23 @@ export default function AdminReportsView({ data }) {
 }
 
 // Internal Helper Components
-function StatCard({ label, value, sub, icon }) {
-    return (
-        <Card className="border-none shadow-sm ring-1 ring-slate-200 p-6 bg-white hover:ring-indigo-500 transition-all">
+function StatCard({ label, value, sub, icon, href }) {
+    const content = (
+        <Card className={`border-none shadow-sm ring-1 ring-slate-200 p-6 bg-white transition-all group ${href ? 'hover:ring-indigo-500 cursor-pointer active:scale-95' : ''}`}>
             <div className="flex justify-between items-start mb-4">
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">{icon}</div>
-                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
+                    {icon}
+                </div>
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
             </div>
             <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{value}</h2>
             <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest">{label}</p>
             <p className="text-[10px] text-slate-400 mt-4 italic border-t border-slate-50 pt-2">{sub}</p>
         </Card>
     );
+
+    // If href is provided, wrap in Link, otherwise just return the card
+    return href ? <Link href={href}>{content}</Link> : content;
 }
 
 function StatusRow({ label, value, color }) {
