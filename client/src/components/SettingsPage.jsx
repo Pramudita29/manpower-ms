@@ -1,14 +1,16 @@
 "use client";
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import {
     AlertTriangle, Bell, CheckCircle, CreditCard, Eye, EyeOff, Lock, Mail,
     Save, Shield, UserX
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 export function SettingsPage({ data, refreshData }) {
-    // Destructuring data passed from parent
+    const router = useRouter();
     const { user, billing, employees } = data;
 
     const userRole = (user?.role || "").toLowerCase();
@@ -20,68 +22,84 @@ export function SettingsPage({ data, refreshData }) {
     const [loadingAction, setLoadingAction] = useState(null);
 
     // 1. STATE MANAGEMENT
-    // Privacy state local sync
     const [isPassportPrivate, setIsPassportPrivate] = useState(false);
-    // Notification state local sync
     const [notifs, setNotifs] = useState({
         enabled: true, newJob: true, newEmployer: true, newWorker: true, newSubAgent: true
     });
 
     useEffect(() => {
+        // SECURITY CHECK: If current user gets blocked, kick them out
+        if (user?.isBlocked) {
+            handleLogout();
+            return;
+        }
+
         if (user?.notificationSettings) {
             setNotifs(user.notificationSettings);
         }
-        // FIX for Issue #1: Logic to catch the privacy setting from the user object 
-        // OR companySettings depending on how your parent component formats 'data'
-        setIsPassportPrivate(user?.companySettings?.isPassportPrivate || user?.isPassportPrivate || false);
+
+        // FIX: Only update state if the value actually exists to prevent "unticking" during loads
+        const privacyValue = user?.companySettings?.isPassportPrivate ?? user?.isPassportPrivate;
+        if (privacyValue !== undefined) {
+            setIsPassportPrivate(privacyValue);
+        }
     }, [user]);
+
+    const handleLogout = () => {
+        localStorage.clear();
+        Cookies.remove('token', { path: '/' });
+        router.replace('/login');
+    };
 
     const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
 
-    // FIX #1: PASSPORT PRIVACY TICK
+    // FIX #1: PASSPORT PRIVACY TICK (Stability Update)
     const handleTogglePrivacy = async () => {
-        // Optimistic UI Update
         const previousState = isPassportPrivate;
+        // Step 1: UI changes instantly
         setIsPassportPrivate(!previousState);
 
         try {
             const res = await axios.patch('http://localhost:5000/api/settings/toggle-passport-privacy', {}, config);
-            // The controller returns: { success: true, isPassportPrivate: boolean }
-            setIsPassportPrivate(res.data.isPassportPrivate);
-            toast.success(res.data.isPassportPrivate ? "Privacy Enabled (Masked)" : "Privacy Disabled (Visible)");
-            refreshData();
+
+            // Step 2: Ensure we use the exact boolean from server
+            if (res.data.success) {
+                setIsPassportPrivate(res.data.isPassportPrivate);
+                toast.success(res.data.isPassportPrivate ? "Privacy Enabled (Masked)" : "Privacy Disabled (Visible)");
+                // Step 3: Refresh parent data without breaking the local toggle
+                refreshData();
+            }
         } catch (err) {
-            setIsPassportPrivate(previousState); // Revert on failure
+            setIsPassportPrivate(previousState); // Revert only on error
             toast.error("Privacy update failed");
         }
     };
 
-    // FIX #2: EMPLOYEE LIST (Controller now sends 'data: employees')
+    // FIX #2: EMPLOYEE LIST
     const handleBlockToggle = async (employeeId) => {
         try {
             const res = await axios.patch(`http://localhost:5000/api/settings/block-member/${employeeId}`, {}, config);
             toast.success(res.data.msg);
-            refreshData(); // This will re-fetch the 'employees' list via parent
+            refreshData();
         } catch (err) {
             toast.error(err.response?.data?.msg || "Action failed");
         }
     };
 
-    // FIX #3: NOTIFICATION BOUNCE (Sync with controller's { data: user.notificationSettings })
+    // FIX #3: NOTIFICATIONS
     const handleToggleNotif = async (key) => {
         const previousNotifs = { ...notifs };
         const updated = { ...notifs, [key]: !notifs[key] };
 
-        setNotifs(updated); // Step 1: UI changes instantly
+        setNotifs(updated);
 
         try {
             const res = await axios.patch('http://localhost:5000/api/settings/notifications', { settings: updated }, config);
-            // Step 2: Set state to exactly what the server saved
             if (res.data.success) {
                 setNotifs(res.data.data);
             }
         } catch (err) {
-            setNotifs(previousNotifs); // Step 3: Revert only if server fails
+            setNotifs(previousNotifs);
             toast.error("Failed to update notifications");
         }
     };
@@ -306,7 +324,7 @@ function NotifToggle({ label, val, onToggle, color = "toggle-secondary" }) {
             <input
                 type="checkbox"
                 className={`toggle toggle-xs ${color}`}
-                checked={!!val} // Double bang ensures boolean
+                checked={!!val}
                 onChange={onToggle}
             />
         </div>
