@@ -1,17 +1,15 @@
 const Employer = require('../models/Employers');
 const JobDemand = require('../models/JobDemand');
 const Worker = require('../models/Worker');
-const User = require('../models/User'); // <--- ADD THIS LINE
+const User = require('../models/User');
+// Import the specific function from your notification controller
+const { createNotification } = require('./notificationController');
 const { StatusCodes } = require('http-status-codes');
 
-// @desc    Get all employers for a specific company (List View with Stats)
+// @desc    Get all employers for a specific company
 exports.getEmployers = async (req, res) => {
     try {
-        // companyId is extracted from the auth middleware (JWT)
         const { companyId } = req.user;
-
-        // Change: We only filter by companyId. 
-        // This ensures any employee of "Company A" sees all "Company A" employers.
         let filter = { companyId };
 
         const employers = await Employer.find(filter)
@@ -34,13 +32,12 @@ exports.getEmployers = async (req, res) => {
 exports.getEmployerDetails = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
-
         let filter = { _id: req.params.id, companyId };
-        if (role !== 'admin') {
+
+        if (role !== 'admin' && role !== 'tenant_admin') {
             filter.createdBy = userId;
         }
 
-        // We populate the virtuals here too so the details page has the latest counts
         const employer = await Employer.findOne(filter)
             .populate('createdBy', 'fullName')
             .populate('totalJobDemands')
@@ -50,14 +47,13 @@ exports.getEmployerDetails = async (req, res) => {
             return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
         }
 
-        // Fetch the actual lists for the details view
         const demands = await JobDemand.find({ employerId: req.params.id, companyId });
         const workers = await Worker.find({ employerId: req.params.id, companyId });
 
         return res.status(StatusCodes.OK).json({
             success: true,
             data: {
-                ...employer.toObject(), // Use toObject to include virtuals
+                ...employer.toObject(),
                 demands,
                 workers
             },
@@ -71,6 +67,8 @@ exports.getEmployerDetails = async (req, res) => {
 exports.createEmployer = async (req, res) => {
     try {
         const { employerName, country, contact, address, notes } = req.body;
+        const userId = req.user._id || req.user.userId;
+        const companyId = req.user.companyId;
 
         const newEmployer = await Employer.create({
             employerName,
@@ -78,32 +76,21 @@ exports.createEmployer = async (req, res) => {
             contact,
             address,
             notes,
-            createdBy: req.user._id || req.user.userId || req.user.id, // Try these variations
-            companyId: req.user.companyId
+            createdBy: userId,
+            companyId: companyId
         });
 
-        // --- REQUIREMENT 6: NOTIFICATIONS ---
-        const notifyUsers = await User.find({
-            companyId: req.user.companyId,
-            isBlocked: false,
-            "notificationSettings.newEmployer": true,
-            "notificationSettings.enabled": true
-        });
+        // Trigger Notification via Controller Function
+        await createNotification(
+            companyId,
+            userId,
+            'employer',
+            `added a new employer: ${employerName} (${country})`
+        );
 
-        notifyUsers.forEach(user => {
-            console.log(`[Notif] To: ${user.fullName} | New Employer: ${employerName} (${country})`);
-            // Call sendEmail or sendSMS utility here if needed
-        });
-
-        res.status(StatusCodes.CREATED).json({
-            success: true,
-            data: newEmployer,
-        });
+        res.status(StatusCodes.CREATED).json({ success: true, data: newEmployer });
     } catch (error) {
-        res.status(StatusCodes.BAD_REQUEST).json({
-            success: false,
-            error: error.message,
-        });
+        res.status(StatusCodes.BAD_REQUEST).json({ success: false, error: error.message });
     }
 };
 
@@ -111,34 +98,32 @@ exports.createEmployer = async (req, res) => {
 exports.updateEmployer = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user._id || req.user.userId;
+        const companyId = req.user.companyId;
 
-        let employer = await Employer.findOne({
-            _id: id,
-            companyId: req.user.companyId
-        });
+        let employer = await Employer.findOne({ _id: id, companyId });
 
         if (!employer) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                error: "Employer not found or unauthorized"
-            });
+            return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
         }
 
-        employer = await Employer.findByIdAndUpdate(
+        const updatedEmployer = await Employer.findByIdAndUpdate(
             id,
             req.body,
             { new: true, runValidators: true }
         );
 
-        res.status(StatusCodes.OK).json({
-            success: true,
-            data: employer,
-        });
+        // Trigger Notification via Controller Function
+        await createNotification(
+            companyId,
+            userId,
+            'employer',
+            `updated details for employer: ${updatedEmployer.employerName}`
+        );
+
+        res.status(StatusCodes.OK).json({ success: true, data: updatedEmployer });
     } catch (error) {
-        res.status(StatusCodes.BAD_REQUEST).json({
-            success: false,
-            error: error.message,
-        });
+        res.status(StatusCodes.BAD_REQUEST).json({ success: false, error: error.message });
     }
 };
 
@@ -146,27 +131,28 @@ exports.updateEmployer = async (req, res) => {
 exports.deleteEmployer = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user._id || req.user.userId;
+        const companyId = req.user.companyId;
 
-        const employer = await Employer.findOneAndDelete({
-            _id: id,
-            companyId: req.user.companyId
-        });
+        const employer = await Employer.findOne({ _id: id, companyId });
 
         if (!employer) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                error: "Employer not found or unauthorized"
-            });
+            return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
         }
 
-        res.status(StatusCodes.OK).json({
-            success: true,
-            message: "Employer deleted successfully"
-        });
+        const employerName = employer.employerName;
+        await employer.deleteOne(); // Trigger middleware if you have any
+
+        // Trigger Notification via Controller Function
+        await createNotification(
+            companyId,
+            userId,
+            'employer',
+            `removed employer: ${employerName}`
+        );
+
+        res.status(StatusCodes.OK).json({ success: true, message: "Employer deleted successfully" });
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            error: error.message,
-        });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
     }
 };
