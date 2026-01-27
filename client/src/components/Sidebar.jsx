@@ -1,7 +1,10 @@
 "use client";
 
 import {
-    Briefcase, Building2, FileText, LayoutDashboard,
+    Briefcase, Building2, FileText,
+    HelpCircle // Added for Support/Feedback
+    ,
+    LayoutDashboard,
     LogOut, Settings, UserCheck, UserCircle, Users
 } from 'lucide-react';
 import Link from 'next/link';
@@ -33,13 +36,13 @@ export function Sidebar({ onLogout }) {
     }, []);
 
     const SETTINGS_PATH = '/dashboard/settings';
+    const SUPPORT_PATH = '/dashboard/support'; // Defined Support Path
 
-    // UPDATED: Added Job Demand to adminLinks for backend oversight
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
-        { path: '/dashboard/tenant-admin/job-demand', label: 'Job Demands', icon: Briefcase }, // Added for Admin
+        { path: '/dashboard/tenant-admin/job-demand', label: 'Job Demands', icon: Briefcase },
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
@@ -104,8 +107,8 @@ export function Sidebar({ onLogout }) {
                             key={link.path}
                             href={link.path}
                             className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                                    : 'text-gray-500 hover:bg-gray-50'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                : 'text-gray-500 hover:bg-gray-50'
                                 }`}
                         >
                             <Icon
@@ -118,8 +121,19 @@ export function Sidebar({ onLogout }) {
                 })}
             </nav>
 
-            {/* LOGOUT */}
-            <div className="p-4 border-t border-gray-100">
+            {/* BOTTOM SECTION: SUPPORT & LOGOUT */}
+            <div className="p-4 border-t border-gray-100 space-y-1">
+                <Link
+                    href={SUPPORT_PATH}
+                    className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${pathname === SUPPORT_PATH
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'text-gray-500 hover:bg-gray-50'
+                        }`}
+                >
+                    <HelpCircle size={19} className={pathname === SUPPORT_PATH ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'} />
+                    <span>Support & Feedback</span>
+                </Link>
+
                 <button
                     onClick={onLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all"

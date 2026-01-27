@@ -350,7 +350,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           icon={<UserCircle />}
           gradient="from-blue-600 to-indigo-600"
           onClick={() => {
-            onNavigate("/dashboard/tenant-admin/workers");
+            onNavigate("/workers");
           }}
         />
 
@@ -359,7 +359,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           value={stats.totalEmployees}
           icon={<Contact />}
           gradient="from-indigo-600 to-purple-600"
-          onClick={() => onNavigate('/dashboard/tenant-admin/employees')}
+          onClick={() => onNavigate('/employees')}
         />
 
         <AdminStatCard
@@ -367,7 +367,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           value={stats.employersAdded}
           icon={<Building2 />}
           gradient="from-emerald-600 to-teal-600"
-          onClick={() => onNavigate('/dashboard/tenant-admin/employers')}
+          onClick={() => onNavigate('/employers')}
         />
 
         <AdminStatCard
@@ -375,7 +375,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           value={stats.activeJobDemands}
           icon={<Briefcase />}
           gradient="from-orange-500 to-rose-600"
-          onClick={() => onNavigate('/dashboard/tenant-admin/job-demand')}
+          onClick={() => onNavigate('/job-demand')}
         />
 
         <AdminStatCard
@@ -383,7 +383,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           value={stats.activeSubAgents}
           icon={<Users />}
           gradient="from-slate-700 to-slate-900"
-          onClick={() => onNavigate('/dashboard/tenant-admin/sub-agents')}
+          onClick={() => onNavigate('/sub-agents')}
         />
       </div>
 

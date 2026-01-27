@@ -2,8 +2,16 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import {
-    AlertTriangle, Bell, CheckCircle, CreditCard, Eye, EyeOff, Lock, Mail,
-    Save, Shield, UserX, Users
+    Bell,
+    Calendar,
+    CheckCircle,
+    Eye, EyeOff,
+    Fingerprint,
+    Lock, Mail,
+    Save, Shield,
+    ShieldCheck,
+    User,
+    Users
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -16,7 +24,6 @@ export function SettingsPage({ data, refreshData }) {
     const userRole = (user?.role || "").toLowerCase();
     const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
-    const [activeTab, setActiveTab] = useState('account');
     const [emails, setEmails] = useState({ newEmail: "" });
     const [passwords, setPasswords] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" });
     const [showPass, setShowPass] = useState(false);
@@ -89,255 +96,267 @@ export function SettingsPage({ data, refreshData }) {
             toast.success("Email updated");
             setEmails({ newEmail: "" });
             refreshData();
-        } catch (err) { toast.error(err.response?.data?.msg || "Failed"); }
-        finally { setLoadingAction(null); }
+        } catch (err) {
+            toast.error(err.response?.data?.msg || "Failed to update email");
+        } finally {
+            setLoadingAction(null);
+        }
+    };
+
+    const handlePasswordUpdate = async (e) => {
+        e.preventDefault();
+        if (passwords.newPassword !== passwords.confirmPassword) return toast.error("Passwords do not match!");
+        setLoadingAction('pass');
+        try {
+            await axios.patch('http://localhost:5000/api/settings/change-password', {
+                oldPassword: passwords.oldPassword,
+                newPassword: passwords.newPassword
+            }, config);
+            toast.success("Password updated successfully");
+            setPasswords({ oldPassword: "", newPassword: "", confirmPassword: "" });
+        } catch (err) {
+            toast.error(err.response?.data?.msg || "Failed to update password");
+        } finally {
+            setLoadingAction(null);
+        }
     };
 
     return (
-        <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-10 bg-[#f8fafc] min-h-screen font-sans">
+            <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                    <p className="text-sm text-gray-500">Manage your account, organization, and preferences.</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Account Control Center</h1>
+                    <p className="text-slate-500 font-medium">Global configuration for your identity and organization.</p>
                 </div>
-                {!notifs.enabled && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-xs font-medium animate-pulse">
-                        <AlertTriangle size={14} /> Notifications are disabled
-                    </div>
-                )}
+                <div className="flex items-center gap-3">
+                    <button onClick={handleLogout} className="px-5 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100">
+                        Sign Out
+                    </button>
+                </div>
             </header>
 
-            {/* Tab Navigation */}
-            <div className="tabs tabs-boxed bg-transparent p-0 gap-2">
-                <button onClick={() => setActiveTab('account')} className={`tab px-6 py-2 h-auto rounded-lg transition-all ${activeTab === 'account' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-500'}`}>
-                    Account
-                </button>
-                {isAdmin && (
-                    <button onClick={() => setActiveTab('org')} className={`tab px-6 py-2 h-auto rounded-lg transition-all ${activeTab === 'org' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-500'}`}>
-                        Organization
-                    </button>
-                )}
-                <button onClick={() => setActiveTab('security')} className={`tab px-6 py-2 h-auto rounded-lg transition-all ${activeTab === 'security' ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-500'}`}>
-                    Security
-                </button>
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Main Forms */}
-                <div className="lg:col-span-2 space-y-6">
-                    {activeTab === 'account' && (
-                        <>
-                            <div className="card bg-white shadow-sm border border-gray-100 overflow-hidden">
-                                <div className="p-6 border-b border-gray-50 flex items-center gap-3">
-                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Mail size={20} /></div>
-                                    <h3 className="font-semibold text-gray-800">Email Address</h3>
-                                </div>
-                                <div className="p-6 space-y-4">
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div className="form-control">
-                                            <label className="label text-xs font-semibold text-gray-400 uppercase">Current</label>
-                                            <input type="text" className="input input-bordered bg-gray-50 text-gray-500" value={user?.email || ""} readOnly />
-                                        </div>
-                                        <div className="form-control">
-                                            <label className="label text-xs font-semibold text-gray-400 uppercase">New Email</label>
-                                            <input
-                                                type="email"
-                                                className="input input-bordered focus:border-blue-500"
-                                                placeholder="Enter new email"
-                                                value={emails.newEmail}
-                                                onChange={(e) => setEmails({ newEmail: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <button onClick={handleEmailUpdate} disabled={loadingAction === 'email' || !emails.newEmail} className="btn btn-primary btn-md gap-2">
-                                            {loadingAction === 'email' ? <span className="loading loading-spinner"></span> : <Save size={18} />}
-                                            Save Changes
+                {/* LEFT COLUMN: PROFILE OVERVIEW */}
+                <aside className="lg:col-span-3 space-y-6 lg:sticky lg:top-10">
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="h-20 w-20 rounded-3xl bg-blue-600 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-blue-100 mb-4">
+                                {user?.fullName?.charAt(0) || 'U'}
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800 leading-tight">{user?.fullName}</h2>
+                            <p className="text-xs font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest mt-2">
+                                {userRole}
+                            </p>
+                        </div>
+                        <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
+                            <SidebarInfo label="Email" value={user?.email} icon={<Mail size={14} />} />
+                            <SidebarInfo label="Security" value="Active" icon={<ShieldCheck size={14} />} />
+                        </div>
+                    </div>
+                </aside>
+
+                {/* MIDDLE COLUMN: CORE SETTINGS */}
+                <main className="lg:col-span-6 space-y-10">
+
+                    {/* 1. Account Security & Email */}
+                    <section id="account" className="space-y-6">
+                        <h3 className="flex items-center gap-2 text-sm font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                            <User size={16} /> Identity Settings
+                        </h3>
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+                            <div className="space-y-4">
+                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                    <Mail size={14} className="text-blue-500" /> Update Communication Email
+                                </label>
+                                <div className="grid gap-3">
+                                    <input type="text" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 font-medium cursor-not-allowed" value={user?.email || ""} readOnly />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            className="flex-1 px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all outline-none font-medium text-slate-700"
+                                            placeholder="Enter new email address"
+                                            value={emails.newEmail}
+                                            onChange={(e) => setEmails({ newEmail: e.target.value })}
+                                        />
+                                        <button onClick={handleEmailUpdate} disabled={loadingAction === 'email' || !emails.newEmail} className="px-6 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all disabled:opacity-50">
+                                            {loadingAction === 'email' ? '...' : <Save size={20} />}
                                         </button>
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="card bg-white shadow-sm border border-gray-100">
-                                <div className="p-6 border-b border-gray-50 flex items-center gap-3">
-                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Bell size={20} /></div>
-                                    <h3 className="font-semibold text-gray-800">Notifications</h3>
-                                </div>
-                                <div className="p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <NotifToggle label="Master Alerts" val={notifs.enabled} onToggle={() => handleToggleNotif('enabled')} color="toggle-primary" desc="Enable/disable all communications" />
-                                        <NotifToggle label="New Job Demands" val={notifs.newJob} onToggle={() => handleToggleNotif('newJob')} desc="Alerts for new positions" />
-                                        <NotifToggle label="Worker Updates" val={notifs.newWorker} onToggle={() => handleToggleNotif('newWorker')} desc="Notifications for new applicants" />
-                                        <NotifToggle label="Agent Activity" val={notifs.newSubAgent} onToggle={() => handleToggleNotif('newSubAgent')} desc="Sub-agent registration alerts" />
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {activeTab === 'org' && isAdmin && (
-                        <div className="card bg-white shadow-sm border border-gray-100">
-                            <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-red-50 rounded-lg text-red-600"><Users size={20} /></div>
-                                    <h3 className="font-semibold text-gray-800">Team Members</h3>
-                                </div>
-                                <span className="badge badge-ghost font-mono text-[10px]">{employees?.length || 0} TOTAL</span>
-                            </div>
-                            <div className="p-6">
-                                {employees?.length > 0 ? (
-                                    <div className="overflow-x-auto">
-                                        <table className="table w-full">
-                                            <thead>
-                                                <tr className="text-gray-400 uppercase text-[10px]">
-                                                    <th>Member</th>
-                                                    <th>Status</th>
-                                                    <th className="text-right">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="text-sm">
-                                                {employees.map(emp => (
-                                                    <tr key={emp._id} className="hover:bg-gray-50/50 transition-colors">
-                                                        <td>
-                                                            <div className="font-bold text-gray-700">{emp.fullName}</div>
-                                                            <div className="text-xs text-gray-400">{emp.email}</div>
-                                                        </td>
-                                                        <td>
-                                                            <span className={`badge badge-sm ${emp.isBlocked ? 'badge-error' : 'badge-success'} badge-outline`}>
-                                                                {emp.isBlocked ? 'Blocked' : 'Active'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="text-right">
-                                                            <button
-                                                                onClick={() => handleBlockToggle(emp._id)}
-                                                                className={`btn btn-ghost btn-xs ${emp.isBlocked ? 'text-success' : 'text-error'}`}
-                                                            >
-                                                                {emp.isBlocked ? 'Unblock' : 'Block'}
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <div className="bg-gray-50 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                                            <UserX className="text-gray-300" size={24} />
-                                        </div>
-                                        <p className="text-gray-500 text-sm">No sub-accounts registered yet.</p>
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    )}
+                    </section>
 
-                    {activeTab === 'security' && (
-                        <div className="card bg-white shadow-sm border border-gray-100">
-                            <div className="p-6 border-b border-gray-50 flex items-center gap-3">
-                                <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Lock size={20} /></div>
-                                <h3 className="font-semibold text-gray-800">Change Password</h3>
-                            </div>
-                            <form onSubmit={handlePasswordUpdate} className="p-6 space-y-4 max-w-md">
+                    {/* 2. Security Section */}
+                    <section id="security" className="space-y-6">
+                        <h3 className="flex items-center gap-2 text-sm font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                            <Lock size={16} /> Security Credentials
+                        </h3>
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+                            <form onSubmit={handlePasswordUpdate} className="space-y-4">
                                 <div className="relative">
                                     <input
                                         type={showPass ? "text" : "password"}
                                         placeholder="Current Password"
-                                        className="input input-bordered w-full pr-12"
+                                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-50 transition-all outline-none pr-14 text-slate-700"
                                         required
                                         value={passwords.oldPassword}
                                         onChange={(e) => setPasswords({ ...passwords, oldPassword: e.target.value })}
                                     />
-                                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-3.5 text-gray-400 hover:text-gray-600">
-                                        {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-5 top-4.5 text-slate-400">
+                                        {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
                                     </button>
                                 </div>
-                                <input
-                                    type="password"
-                                    placeholder="New Password"
-                                    className="input input-bordered w-full"
-                                    required
-                                    value={passwords.newPassword}
-                                    onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                                />
-                                <input
-                                    type="password"
-                                    placeholder="Confirm New Password"
-                                    className="input input-bordered w-full"
-                                    required
-                                    value={passwords.confirmPassword}
-                                    onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
-                                />
-                                <button type="submit" disabled={loadingAction === 'pass'} className="btn btn-neutral w-full gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input type="password" placeholder="New Password" className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-50 outline-none text-slate-700" required value={passwords.newPassword} onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })} />
+                                    <input type="password" placeholder="Confirm New" className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-50 outline-none text-slate-700" required value={passwords.confirmPassword} onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })} />
+                                </div>
+                                <button type="submit" disabled={loadingAction === 'pass'} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 shadow-sm">
                                     {loadingAction === 'pass' ? <span className="loading loading-spinner"></span> : <CheckCircle size={18} />}
-                                    Update Security Credentials
+                                    Refresh Access Credentials
                                 </button>
                             </form>
                         </div>
-                    )}
-                </div>
+                    </section>
 
-                {/* Right Column: Sidebar info */}
-                <div className="space-y-6">
-                    {/* Subscription Mini Card */}
-                    <div className="card bg-slate-900 text-white p-6 shadow-lg overflow-hidden relative">
-                        <div className="relative z-10 space-y-4">
-                            <div className="flex justify-between items-start">
-                                <div className="badge badge-primary bg-blue-600 border-none text-[10px] font-bold">CURRENT PLAN</div>
-                                <CheckCircle className="text-emerald-400" size={20} />
+                    {/* 3. Notifications */}
+                    <section id="notifications" className="space-y-6">
+                        <h3 className="flex items-center gap-2 text-sm font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                            <Bell size={16} /> Notification Channels
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <SinglePageNotifToggle label="Master Alerts" val={notifs.enabled} onToggle={() => handleToggleNotif('enabled')} desc="Enable/disable all" />
+                            <SinglePageNotifToggle label="Job Demands" val={notifs.newJob} onToggle={() => handleToggleNotif('newJob')} desc="New vacancy alerts" />
+                            <SinglePageNotifToggle label="Staffing" val={notifs.newWorker} onToggle={() => handleToggleNotif('newWorker')} desc="New applications" />
+                            <SinglePageNotifToggle label="Sub-Agents" val={notifs.newSubAgent} onToggle={() => handleToggleNotif('newSubAgent')} desc="Agent activity" />
+                        </div>
+                    </section>
+
+                    {/* 4. Team Management */}
+                    {isAdmin && (
+                        <section id="team" className="space-y-6">
+                            <h3 className="flex items-center gap-2 text-sm font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
+                                <Users size={16} /> Team Access Control
+                            </h3>
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                                {employees?.length > 0 ? (
+                                    <div className="divide-y divide-slate-100">
+                                        {employees.map(emp => (
+                                            <div key={emp._id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold">
+                                                        {emp.fullName.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-800">{emp.fullName}</div>
+                                                        <div className="text-xs text-slate-400">{emp.email}</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleBlockToggle(emp._id)}
+                                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${emp.isBlocked ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}
+                                                >
+                                                    {emp.isBlocked ? 'Unblock' : 'Block'}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-10 text-center text-slate-400 font-medium">No team members registered.</div>
+                                )}
                             </div>
-                            <div>
-                                <h2 className="text-2xl font-black capitalize tracking-tight">{billing?.plan || 'Standard'}</h2>
-                                <p className="text-slate-400 text-xs mt-1">Status: <span className="text-emerald-400 font-bold">{billing?.status || 'Active'}</span></p>
+                        </section>
+                    )}
+                </main>
+
+                {/* RIGHT COLUMN: EXPIRY & PRIVACY */}
+                <aside className="lg:col-span-3 space-y-6 lg:sticky lg:top-10">
+                    {/* EXPIRY CARD (Refined) */}
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl shadow-slate-200 relative overflow-hidden text-white border border-white/10">
+                        <div className="relative z-10 space-y-8">
+                            <div className="flex justify-between items-center">
+                                <span className="px-3 py-1 bg-blue-500/20 rounded-full text-[10px] font-black tracking-widest text-blue-300 border border-blue-500/30">
+                                    {billing?.plan?.toUpperCase() || 'PREMIUM'}
+                                </span>
+                                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
                             </div>
-                            <div className="pt-4 border-t border-white/10">
-                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Expires on</p>
-                                <p className="text-sm font-semibold">{billing?.expiryDate ? new Date(billing.expiryDate).toLocaleDateString() : 'N/A'}</p>
+
+                            <div className="space-y-2">
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">License Expires On</p>
+                                <div className="flex items-end gap-2">
+                                    <h4 className="text-2xl font-black">
+                                        {billing?.expiryDate ? new Date(billing.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Lifetime'}
+                                    </h4>
+                                    <Calendar size={18} className="text-slate-500 mb-1.5" />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500 tracking-tighter">
+                                    <span>Account Status</span>
+                                    <span className="text-emerald-400">Active</span>
+                                </div>
+                                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-blue-500 h-full w-[85%] rounded-full shadow-[0_0_12px_rgba(59,130,246,0.5)]"></div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                                    All services are currently operational. To extend your license, contact your administrator.
+                                </p>
                             </div>
                         </div>
-                        <CreditCard className="absolute -bottom-4 -right-4 text-white/5 w-32 h-32 rotate-12" />
+                        <Shield className="absolute -bottom-10 -right-10 text-white/5 w-48 h-48 rotate-12" />
                     </div>
 
-                    {/* Privacy Toggle Card */}
+                    {/* PRIVACY CARD */}
                     {isAdmin && (
-                        <div className="card bg-white shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
                             <div className="flex items-center gap-2 mb-4">
-                                <Shield className="text-blue-500" size={18} />
-                                <h4 className="font-bold text-gray-800 text-sm">Privacy Controls</h4>
+                                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Fingerprint size={18} /></div>
+                                <h4 className="font-bold text-slate-800">Privacy Shield</h4>
                             </div>
-                            <p className="text-[11px] text-gray-500 mb-6 leading-relaxed">
-                                Enable masking to hide sensitive passport digits from non-admin accounts.
+                            <p className="text-xs text-slate-400 font-medium leading-relaxed mb-6">
+                                Masking ensures sensitive digits are only visible to authorized administrators.
                             </p>
-                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                <span className="text-xs font-bold text-gray-600">Passport Masking</span>
-                                <input
-                                    type="checkbox"
-                                    className="toggle toggle-primary toggle-sm"
-                                    checked={isPassportPrivate}
-                                    onChange={handleTogglePrivacy}
-                                />
-                            </div>
+                            <button
+                                onClick={handleTogglePrivacy}
+                                className={`flex items-center justify-between w-full p-4 rounded-2xl font-bold text-xs transition-all border ${isPassportPrivate ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100'}`}
+                            >
+                                {isPassportPrivate ? 'Masking Active' : 'Masking Inactive'}
+                                <div className={`w-10 h-5 rounded-full relative flex items-center px-1 transition-all ${isPassportPrivate ? 'bg-white/20' : 'bg-slate-300'}`}>
+                                    <div className={`w-3 h-3 rounded-full bg-white transition-all ${isPassportPrivate ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                </div>
+                            </button>
                         </div>
                     )}
-                </div>
+                </aside>
             </div>
         </div>
     );
 }
 
-function NotifToggle({ label, val, onToggle, color = "toggle-info", desc }) {
+function SidebarInfo({ label, value, icon }) {
     return (
-        <div className="flex items-start justify-between p-4 bg-gray-50/50 rounded-xl border border-gray-100 hover:border-blue-100 transition-all group">
-            <div className="flex flex-col">
-                <span className="text-xs font-bold text-gray-700">{label}</span>
-                {desc && <span className="text-[10px] text-gray-400 group-hover:text-gray-500">{desc}</span>}
+        <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-slate-300">{icon}</div>
+            <div className="flex flex-col overflow-hidden">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{label}</span>
+                <span className="text-sm font-bold text-slate-700 truncate">{value || 'Not set'}</span>
             </div>
-            <input
-                type="checkbox"
-                className={`toggle toggle-sm ${color}`}
-                checked={!!val}
-                onChange={onToggle}
-            />
+        </div>
+    );
+}
+
+function SinglePageNotifToggle({ label, val, onToggle, desc }) {
+    return (
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-100 transition-all flex items-center justify-between group cursor-pointer" onClick={onToggle}>
+            <div className="pr-2">
+                <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{label}</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight">{desc}</p>
+            </div>
+            <div className={`flex-shrink-0 h-6 w-11 rounded-full flex items-center px-1 transition-all ${val ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                <div className={`h-4 w-4 rounded-full bg-white shadow-sm transition-all ${val ? 'translate-x-5' : 'translate-x-0'}`}></div>
+            </div>
         </div>
     );
 }
