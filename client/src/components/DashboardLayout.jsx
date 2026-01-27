@@ -1,28 +1,41 @@
 "use client";
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie'; // Import cookies
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
 export function DashboardLayout({
     children,
-    user: propUser, // User passed from page.jsx (if any)
+    user: propUser,
     notifications = [],
     role,
     currentPath,
     onNavigate,
-    onLogout,
+    onLogout: propOnLogout,
     onMarkAllAsRead
 }) {
     const [internalUser, setInternalUser] = useState(null);
 
-    // FETCH USER DATA IF PROPS ARE EMPTY (Handles other tabs)
+    const handleLogout = () => {
+        if (propOnLogout) propOnLogout();
+
+        // 1. Clear all storage
+        localStorage.clear();
+        sessionStorage.clear();
+        Cookies.remove('token', { path: '/' });
+
+        // 2. Immediate Redirect (window.location is faster for logout than router.push)
+        window.location.href = '/login';
+    };
+
     useEffect(() => {
-        if (!propUser && !internalUser) {
+        // Only fetch if we don't have a user and WE DO have a token
+        const token = localStorage.getItem('token');
+        if (!propUser && !internalUser && token) {
             const fetchUser = async () => {
                 try {
-                    const token = localStorage.getItem('token');
-                    if (!token) return;
                     const res = await axios.get('http://localhost:5000/api/auth/me', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
@@ -30,6 +43,7 @@ export function DashboardLayout({
                         setInternalUser(res.data.user);
                     }
                 } catch (err) {
+                    // If fetching user fails (401), our new interceptor handles it!
                     console.error("Layout Fetch Error:", err);
                 }
             };
@@ -37,7 +51,6 @@ export function DashboardLayout({
         }
     }, [propUser, internalUser]);
 
-    // Normalize either the Prop User or the Internally Fetched User
     const memoizedUser = useMemo(() => {
         const activeUser = propUser || internalUser;
         return {
@@ -54,7 +67,7 @@ export function DashboardLayout({
                 role={memoizedUser.role.toLowerCase()}
                 currentPath={currentPath}
                 onNavigate={onNavigate}
-                onLogout={onLogout}
+                onLogout={handleLogout} 
                 user={memoizedUser}
             />
 
