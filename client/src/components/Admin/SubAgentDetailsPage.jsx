@@ -1,10 +1,9 @@
 "use client";
 
-import React from 'react';
+import { Calendar, MapPin, Phone, Trash2, Users } from 'lucide-react';
+import { Badge } from '../ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Badge } from '../ui/Badge';
-import { Users, Phone, MapPin, Calendar, Trash2 } from 'lucide-react';
 
 export function SubAgentDetailsPage({ agent, workers = [], onDelete, onStatusChange }) {
   return (
@@ -14,28 +13,28 @@ export function SubAgentDetailsPage({ agent, workers = [], onDelete, onStatusCha
         <div>
           <h2 className="text-3xl font-bold text-gray-900">{agent.name}</h2>
           <div className="flex gap-4 mt-2 text-gray-600">
-            <span className="flex items-center gap-1"><MapPin size={16}/> {agent.country}</span>
-            <span className="flex items-center gap-1"><Phone size={16}/> {agent.contact}</span>
-            <span className="flex items-center gap-1"><Calendar size={16}/> Joined {new Date(agent.createdAt).toLocaleDateString()}</span>
+            <span className="flex items-center gap-1"><MapPin size={16} /> {agent.country}</span>
+            <span className="flex items-center gap-1"><Phone size={16} /> {agent.contact}</span>
+            <span className="flex items-center gap-1"><Calendar size={16} /> Joined {new Date(agent.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
         <div className="flex gap-3">
-            <select 
-                value={agent.status}
-                onChange={(e) => onStatusChange(agent._id, e.target.value)}
-                className="border rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500"
-            >
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="inactive">Inactive</option>
-            </select>
-            <button 
-                onClick={() => onDelete(agent._id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete Agent"
-            >
-                <Trash2 size={20} />
-            </button>
+          <select
+            value={agent.status || 'active'}
+            onChange={(e) => onStatusChange?.(agent._id, e.target.value)}
+            className="border rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button
+            onClick={() => onDelete?.(agent._id)}
+            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete Agent"
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
       </div>
 
@@ -52,7 +51,7 @@ export function SubAgentDetailsPage({ agent, workers = [], onDelete, onStatusCha
             </div>
           </CardContent>
         </Card>
-        {/* Add more stats cards here if needed */}
+        {/* You can add more stats cards here */}
       </div>
 
       {/* Workers List Table */}

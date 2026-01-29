@@ -3,11 +3,15 @@
 import adbs from 'ad-bs-converter';
 import axios from 'axios';
 import {
-  Bell, Briefcase, Building2,
-  CheckCircle, Contact,
+  Bell,
+  BriefcaseBusiness,
+  Building,
+  Building2,
+  CheckCircle,
   Edit, FileText, Paperclip,
   Plus, RefreshCw, Search, ShieldCheck,
   Trash2, TrendingUp,
+  User,
   UserCircle, UserPlus, Users,
   X
 } from 'lucide-react';
@@ -436,7 +440,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </div>
       </div>
 
-      {/* Search Bar - Full width, below header */}
+      {/* Search Bar */}
       <div ref={searchRef} className="relative w-full">
         <div className="relative">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
@@ -474,44 +478,88 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                   Results ({searchResults.length})
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {searchResults.map((item) => (
-                    <button
-                      key={item._id}
-                      onClick={() => handleResultClick(item)}
-                      className="w-full px-6 py-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-5"
-                    >
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 ${item.type === 'employee' ? 'bg-indigo-600' :
-                          item.type === 'employer' ? 'bg-emerald-600' :
-                            item.type === 'worker' ? 'bg-teal-600' :
-                              item.type === 'job-demand' ? 'bg-orange-600' :
-                                item.type === 'sub-agent' ? 'bg-purple-600' :
-                                  'bg-amber-600'
-                        }`}>
-                        {item.type === 'note' || item.type === 'reminder' ? (
-                          <FileText size={20} />
-                        ) : item.type === 'employee' ? (
-                          <Contact size={20} />
-                        ) : item.type === 'worker' ? (
-                          <Users size={20} />
-                        ) : item.type === 'employer' ? (
-                          <Building2 size={20} />
-                        ) : item.type === 'job-demand' ? (
-                          <Briefcase size={20} />
-                        ) : (
-                          <Users size={20} />
-                        )}
-                      </div>
+                  {searchResults.map((item) => {
+                    // Custom subtitle per entity type
+                    let subtitle = '';
+                    switch (item.type) {
+                      case 'worker':
+                        subtitle = [item.passportNumber, item.phone || item.contact].filter(Boolean).join(' • ') || item.status || 'Worker';
+                        break;
+                      case 'employee':
+                      case 'staff':
+                        subtitle = [item.phone || item.contactNumber, item.email].filter(Boolean).join(' • ') || 'Staff';
+                        break;
+                      case 'sub-agent':
+                        subtitle = [item.phone || item.contact, item.email].filter(Boolean).join(' • ') || 'Sub-agent';
+                        break;
+                      case 'employer':
+                        subtitle = item.country || 'Employer';
+                        break;
+                      case 'job-demand':
+                        subtitle = [item.employerName || item.companyName, item.country].filter(Boolean).join(' • ') || 'Demand';
+                        break;
+                      case 'note':
+                      case 'reminder':
+                        subtitle = `${item.category} • ${new Date(item.createdAt || item.targetDate).toLocaleDateString()} • ${item.createdBy?.fullName || '—'}`;
+                        break;
+                      default:
+                        subtitle = item.subtitle || item.country || item.category || item.status || '—';
+                    }
 
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-900 truncate text-base">
-                          {item.title || item.fullName || item.name || item.employerName || item.jobTitle || item.content?.substring(0, 60) || '—'}
-                        </p>
-                        <p className="text-sm text-slate-500 mt-1 truncate">
-                          {item.type.toUpperCase()} • {item.subtitle || item.email || item.phone || item.country || item.category || item.status || '—'}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                    // Custom icon per type
+                    let iconComponent;
+                    switch (item.type) {
+                      case 'employee':
+                      case 'staff':
+                        iconComponent = <User size={20} />;
+                        break;
+                      case 'employer':
+                        iconComponent = <Building size={20} />;
+                        break;
+                      case 'worker':
+                        iconComponent = <Users size={20} />;
+                        break;
+                      case 'job-demand':
+                        iconComponent = <BriefcaseBusiness size={20} />;
+                        break;
+                      case 'sub-agent':
+                        iconComponent = <UserCircle size={20} />;
+                        break;
+                      case 'note':
+                      case 'reminder':
+                        iconComponent = <FileText size={20} />;
+                        break;
+                      default:
+                        iconComponent = <Search size={20} />;
+                    }
+
+                    return (
+                      <button
+                        key={item._id}
+                        onClick={() => handleResultClick(item)}
+                        className="w-full px-6 py-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-5"
+                      >
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 ${item.type === 'employee' ? 'bg-indigo-600' :
+                            item.type === 'employer' ? 'bg-emerald-600' :
+                              item.type === 'worker' ? 'bg-teal-600' :
+                                item.type === 'job-demand' ? 'bg-orange-600' :
+                                  item.type === 'sub-agent' ? 'bg-purple-600' :
+                                    'bg-amber-600'
+                          }`}>
+                          {iconComponent}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 truncate text-base">
+                            {item.title || item.fullName || item.name || item.employerName || item.jobTitle || item.content?.substring(0, 60) || '—'}
+                          </p>
+                          <p className="text-sm text-slate-500 mt-1 truncate">
+                            {item.type.toUpperCase()} • {subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -524,7 +572,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard
           title="Workers"
           value={stats.workersInProcess}
-          icon={<UserCircle />}
+          icon={<Users />}
           gradient="from-blue-600 to-indigo-600"
           onClick={() => onNavigate("/workers")}
         />
@@ -532,7 +580,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard
           title="Staff"
           value={stats.totalEmployees}
-          icon={<Contact />}
+          icon={<UserCircle />}
           gradient="from-indigo-600 to-purple-600"
           onClick={() => onNavigate('/employees')}
         />
@@ -548,7 +596,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard
           title="Job Demands"
           value={stats.activeJobDemands}
-          icon={<Briefcase />}
+          icon={<BriefcaseBusiness />}
           gradient="from-orange-500 to-rose-600"
           onClick={() => onNavigate('/job-demand')}
         />
@@ -556,7 +604,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard
           title="Sub Agents"
           value={stats.activeSubAgents}
-          icon={<Users />}
+          icon={<UserCircle />}
           gradient="from-slate-700 to-slate-900"
           onClick={() => onNavigate('/sub-agents')}
         />

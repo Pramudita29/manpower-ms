@@ -236,7 +236,7 @@ const searchGlobal = async (req, res) => {
         }
 
         const searchTerm = q.trim();
-        const regex = new RegExp(searchTerm, 'i');
+        const regex = new RegExp(searchTerm, 'i'); // case-insensitive
 
         const companyId = req.user.companyId;
 
@@ -248,17 +248,18 @@ const searchGlobal = async (req, res) => {
             subAgents,
             notes
         ] = await Promise.all([
-            // Employees / Staff
+            // Employees / Staff - search name, email, phone
             User.find({
                 companyId,
                 role: 'employee',
                 $or: [
                     { fullName: regex },
                     { email: regex },
-                    { phone: regex }
+                    { phone: regex },
+                    { contactNumber: regex }
                 ]
             })
-                .select('fullName email phone _id role')
+                .select('fullName email phone contactNumber _id role')
                 .limit(10)
                 .lean(),
 
@@ -269,27 +270,29 @@ const searchGlobal = async (req, res) => {
                     { employerName: regex },
                     { contactPerson: regex },
                     { email: regex },
-                    { country: regex }
+                    { country: regex },
+                    { contact: regex }
                 ]
             })
-                .select('employerName contactPerson email country _id')
+                .select('employerName contact email country contact _id')
                 .limit(10)
                 .lean(),
 
-            // Workers
+            // Workers - search name, passport, phone
             Worker.find({
                 companyId,
                 $or: [
                     { name: regex },
                     { passportNumber: regex },
-                    { phone: regex }
+                    { phone: regex },
+                    { contact: regex }
                 ]
             })
-                .select('name passportNumber phone _id status')
+                .select('name passportNumber phone contact _id status')
                 .limit(10)
                 .lean(),
 
-            // Job Demands
+            // Job Demands - search job title, company name, country
             JobDemand.find({
                 companyId,
                 $or: [
@@ -298,20 +301,21 @@ const searchGlobal = async (req, res) => {
                     { country: regex }
                 ]
             })
-                .select('jobTitle companyName country _id')
+                .select('jobTitle employerName country _id')  // ← ensure employerName is included
                 .limit(10)
                 .lean(),
 
-            // Sub Agents
+            // Sub Agents - search name, company, phone
             SubAgent.find({
                 companyId,
                 $or: [
                     { name: regex },
                     { company: regex },
-                    { phone: regex }
+                    { phone: regex },
+                    { contact: regex }
                 ]
             })
-                .select('name company phone _id')
+                .select('name company phone contact email _id')  // ← added email
                 .limit(10)
                 .lean(),
 
@@ -330,47 +334,47 @@ const searchGlobal = async (req, res) => {
         ]);
 
         const results = [
-            // Employees
+            // Employees: phone/contactNumber • email
             ...employees.map(item => ({
                 type: 'employee',
                 ...item,
                 title: item.fullName,
-                subtitle: item.email || item.phone || 'Staff'
+                subtitle: [item.phone || item.contactNumber, item.email].filter(Boolean).join(' • ') || 'Staff'
             })),
 
-            // Employers
+            // Employers: country (primary)
             ...employers.map(item => ({
                 type: 'employer',
                 ...item,
                 title: item.employerName || item.contactPerson,
-                subtitle: item.country || item.email || 'Employer'
+                subtitle: item.country || item.email || item.contact || 'Employer'
             })),
 
-            // Workers
+            // Workers: passportNumber • phone/contact
             ...workers.map(item => ({
                 type: 'worker',
                 ...item,
                 title: item.name,
-                subtitle: item.passportNumber || item.phone || item.status || 'Worker'
+                subtitle: [item.passportNumber, item.phone || item.contact].filter(Boolean).join(' • ') || item.status || 'Worker'
             })),
 
-            // Job Demands
+            // Job Demands: employer's name / companyName
             ...jobDemands.map(item => ({
                 type: 'job-demand',
                 ...item,
                 title: item.jobTitle,
-                subtitle: item.companyName || item.country || 'Demand'
+                subtitle: item.employerName || item.companyName || item.country || 'Demand'
             })),
 
-            // Sub Agents
+            // Sub Agents: phone/contact • email
             ...subAgents.map(item => ({
                 type: 'sub-agent',
                 ...item,
                 title: item.name || item.company,
-                subtitle: item.phone || 'Sub-agent'
+                subtitle: [item.phone || item.contact, item.email].filter(Boolean).join(' • ') || 'Sub-agent'
             })),
 
-            // Notes
+            // Notes / Reminders
             ...notes.map(item => ({
                 type: item.category === 'reminder' ? 'reminder' : 'note',
                 ...item,
@@ -392,7 +396,6 @@ const searchGlobal = async (req, res) => {
         });
     }
 };
-
 module.exports = {
     getDashboardData,
     addNote,

@@ -41,9 +41,53 @@ exports.getSubAgents = async (req, res) => {
       data: agents
     });
   } catch (error) {
+    console.error('Error in getSubAgents:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: error.message
+      message: error.message || 'Server error fetching sub-agents'
+    });
+  }
+};
+
+/**
+ * @desc    Get a single sub-agent by ID
+ */
+exports.getSubAgentById = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const agentId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(agentId)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'Invalid sub-agent ID format'
+      });
+    }
+
+    const agent = await SubAgent.findOne({
+      _id: agentId,
+      companyId: new mongoose.Types.ObjectId(companyId)
+    });
+
+    if (!agent) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: 'Sub-agent not found or does not belong to your company'
+      });
+    }
+
+    // Optional: populate createdBy or other fields if needed
+    // await agent.populate('createdBy', 'fullName email');
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: agent
+    });
+  } catch (error) {
+    console.error('Error in getSubAgentById:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Server error fetching sub-agent'
     });
   }
 };
@@ -57,7 +101,7 @@ exports.createSubAgent = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // 1. Prevent Double Creation (5-second window)
+    // Prevent double creation (5-second window)
     const recentAgent = await SubAgent.findOne({
       name,
       companyId,
@@ -67,18 +111,17 @@ exports.createSubAgent = async (req, res) => {
     if (recentAgent) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "Duplicate entry detected. Please wait."
+        message: "Duplicate entry detected. Please wait a moment."
       });
     }
 
-    // 2. Create Agent
     const agent = await SubAgent.create({
       ...req.body,
-      companyId: companyId,
+      companyId,
       createdBy: userId
     });
 
-    // 3. TRIGGER NOTIFICATION (Object Syntax)
+    // Notify
     await createNotification({
       companyId,
       createdBy: userId,
@@ -88,7 +131,11 @@ exports.createSubAgent = async (req, res) => {
 
     res.status(StatusCodes.CREATED).json({ success: true, data: agent });
   } catch (error) {
-    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
+    console.error('Error in createSubAgent:', error);
+    res.status(StatusCodes.BAD_REQUEST).json({
+      success: false,
+      message: error.message || 'Failed to create sub-agent'
+    });
   }
 };
 
@@ -102,7 +149,7 @@ exports.updateSubAgent = async (req, res) => {
 
     let filter = { _id: req.params.id, companyId };
 
-    // Role check: Only admin or the creator can edit
+    // Role check: Only admin or creator can edit
     if (role !== 'admin' && role !== 'tenant_admin' && role !== 'super_admin') {
       filter.createdBy = userId;
     }
@@ -115,11 +162,10 @@ exports.updateSubAgent = async (req, res) => {
     if (!agent) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: "Unauthorized or Agent not found."
+        message: "Unauthorized or sub-agent not found"
       });
     }
 
-    // TRIGGER NOTIFICATION (Object Syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -129,7 +175,11 @@ exports.updateSubAgent = async (req, res) => {
 
     res.status(StatusCodes.OK).json({ success: true, data: agent });
   } catch (error) {
-    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
+    console.error('Error in updateSubAgent:', error);
+    res.status(StatusCodes.BAD_REQUEST).json({
+      success: false,
+      message: error.message || 'Failed to update sub-agent'
+    });
   }
 };
 
@@ -147,20 +197,18 @@ exports.deleteSubAgent = async (req, res) => {
       filter.createdBy = userId;
     }
 
-    // Find first to get the name before deletion
     const agentToDelete = await SubAgent.findOne(filter);
 
     if (!agentToDelete) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: "Unauthorized or Agent not found."
+        message: "Unauthorized or sub-agent not found"
       });
     }
 
     const agentName = agentToDelete.name;
     await agentToDelete.deleteOne();
 
-    // TRIGGER NOTIFICATION (Object Syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -168,9 +216,13 @@ exports.deleteSubAgent = async (req, res) => {
       content: `removed sub-agent: ${agentName}`
     });
 
-    res.status(StatusCodes.OK).json({ success: true, message: "Agent removed successfully" });
+    res.status(StatusCodes.OK).json({ success: true, message: "Sub-agent removed successfully" });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    console.error('Error in deleteSubAgent:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Server error deleting sub-agent'
+    });
   }
 };
 
@@ -186,17 +238,21 @@ exports.getSubAgentWorkers = async (req, res) => {
     if (!agent) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: "Agent not found"
+        message: "Sub-agent not found or does not belong to your company"
       });
     }
 
     const workers = await Worker.find({
       subAgentId: req.params.id,
-      companyId: companyId
+      companyId
     }).sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({ success: true, data: workers });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    console.error('Error in getSubAgentWorkers:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Server error fetching workers'
+    });
   }
 };

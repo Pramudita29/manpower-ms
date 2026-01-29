@@ -23,6 +23,8 @@ export default function AdminSubAgentsPage() {
 
     const fetchSubAgents = useCallback(async () => {
         const token = localStorage.getItem('token');
+        if (!token) return;
+
         try {
             setIsLoading(true);
             const response = await fetch('http://localhost:5000/api/sub-agents', {
@@ -34,15 +36,17 @@ export default function AdminSubAgentsPage() {
             const result = await response.json();
             if (response.ok) {
                 setSubAgents(result.data || []);
+            } else {
+                toast.error(result.msg || "Failed to load sub-agents");
             }
         } catch (err) {
             console.error("Error fetching sub-agents:", err);
+            toast.error("Network error while loading agents");
         } finally {
             setIsLoading(false);
         }
     }, []);
 
-    // Fetch workers for selected agent
     const fetchAgentWorkers = async (agentId) => {
         const token = localStorage.getItem('token');
         try {
@@ -52,13 +56,15 @@ export default function AdminSubAgentsPage() {
             const result = await response.json();
             if (result.success) {
                 setAgentWorkers(result.data || []);
+            } else {
+                toast.error("Failed to load workers for this agent");
             }
         } catch (err) {
             console.error("Error fetching workers:", err);
         }
     };
 
-    // Auto-load detail when ?id= is present (from dashboard search)
+    // When ?id appears (from search or list click) → load details
     useEffect(() => {
         if (selectedId) {
             const fetchDetail = async () => {
@@ -68,20 +74,23 @@ export default function AdminSubAgentsPage() {
                     const res = await axios.get(`http://localhost:5000/api/sub-agents/${selectedId}`, {
                         headers: { Authorization: `Bearer ${token}` }
                     });
+
                     if (res.data.success) {
                         setSelectedAgent(res.data.data);
-                        fetchAgentWorkers(res.data.data._id);
+                        await fetchAgentWorkers(res.data.data._id);
                     } else {
-                        toast.error("Sub-agent not found");
+                        toast.error(res.data.msg || "Sub-agent not found");
                         router.replace('/dashboard/tenant-admin/sub-agents');
                     }
                 } catch (err) {
-                    toast.error("Failed to load sub-agent details");
+                    console.error("Detail fetch error:", err);
+                    toast.error("Failed to load agent details");
                     router.replace('/dashboard/tenant-admin/sub-agents');
                 } finally {
                     setLoadingDetail(false);
                 }
             };
+
             fetchDetail();
         } else {
             setSelectedAgent(null);
@@ -94,6 +103,7 @@ export default function AdminSubAgentsPage() {
     }, [fetchSubAgents]);
 
     const handleSelectSubAgent = (agent) => {
+        if (!agent?._id) return;
         router.push(`/dashboard/tenant-admin/sub-agents?id=${agent._id}`);
     };
 
@@ -108,30 +118,42 @@ export default function AdminSubAgentsPage() {
                 },
                 body: JSON.stringify({ status: newStatus })
             });
+
+            const result = await response.json();
             if (response.ok) {
-                const updatedResult = await response.json();
-                setSelectedAgent(updatedResult.data);
+                setSelectedAgent(result.data);
                 fetchSubAgents();
+                toast.success("Status updated");
+            } else {
+                toast.error(result.msg || "Failed to update status");
             }
         } catch (err) {
             console.error("Update failed:", err);
+            toast.error("Network error updating status");
         }
     };
 
     const handleDeleteAgent = async (id) => {
         if (!confirm("Are you sure you want to delete this agent?")) return;
+
         const token = localStorage.getItem('token');
         try {
             const response = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+
             if (response.ok) {
+                toast.success("Agent deleted");
                 handleBackToList();
                 fetchSubAgents();
+            } else {
+                const result = await response.json();
+                toast.error(result.msg || "Failed to delete agent");
             }
         } catch (err) {
             console.error("Delete failed:", err);
+            toast.error("Network error deleting agent");
         }
     };
 
@@ -139,7 +161,9 @@ export default function AdminSubAgentsPage() {
         router.replace('/dashboard/tenant-admin/sub-agents');
     };
 
-    // If we have selected ID and loaded agent → show full details page (no modal)
+    // ─── RENDER ────────────────────────────────────────────────
+
+    // Details view (full page)
     if (selectedId && selectedAgent) {
         return (
             <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
@@ -161,14 +185,18 @@ export default function AdminSubAgentsPage() {
         );
     }
 
-    // Add form view (placeholder)
+    // Add form (placeholder)
     if (action === 'add') {
         return (
             <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
                 <div className="py-6 max-w-[1600px] mx-auto px-4">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                         <h2 className="text-xl font-bold mb-4">Register New Sub-Agent</h2>
-                        <button onClick={handleBackToList} className="text-blue-500 hover:underline">
+                        <p className="text-gray-600 mb-6">Form coming soon...</p>
+                        <button
+                            onClick={handleBackToList}
+                            className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+                        >
                             ← Back to List
                         </button>
                     </div>
@@ -177,7 +205,7 @@ export default function AdminSubAgentsPage() {
         );
     }
 
-    // Default: list view
+    // List view
     return (
         <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
             <div className="py-6 max-w-[1600px] mx-auto px-4">
