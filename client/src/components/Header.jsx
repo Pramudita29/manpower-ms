@@ -6,7 +6,7 @@ export function Header({
     user,
     notifications = [],
     showSearch = false,
-    onNavigate, // The prop that is failing
+    onNavigate,
     onRefreshNotifications
 }) {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -14,12 +14,14 @@ export function Header({
     const dropdownRef = useRef(null);
 
     const userData = useMemo(() => {
-        const nameToDisplay = user?.fullName || user?.name || user?.username || (user?.role ? user.role.toUpperCase() : "User");
+        // We strictly look for the name. No "ADMIN" fallback here.
+        const nameToDisplay = user?.fullName || user?.name || user?.username || "";
+
         return {
             id: String(user?.id || user?._id || ""),
             fullName: nameToDisplay,
             role: user?.role || "Member",
-            avatar: nameToDisplay.charAt(0).toUpperCase()
+            avatar: nameToDisplay ? nameToDisplay.charAt(0).toUpperCase() : "..."
         };
     }, [user]);
 
@@ -53,26 +55,16 @@ export function Header({
         }
     };
 
-    // --- REPAIRED NAVIGATION LOGIC ---
     const handleViewHistory = (e) => {
         e.preventDefault();
         setIsNotifOpen(false);
-
         if (typeof onNavigate === 'function') {
             onNavigate('notifications');
         } else {
-            // FALLBACK: If prop drilling failed, manually calculate the route
-            console.warn("Prop 'onNavigate' missing. Using URL fallback.");
             const currentURL = window.location.pathname;
-            let targetPath = '';
-
-            if (currentURL.includes('/tenant-admin')) {
-                targetPath = '/dashboard/tenant-admin/notifications';
-            } else {
-                targetPath = '/dashboard/employee/notifications';
-            }
-
-            // Perform a direct browser navigation if Next.js router prop is missing
+            let targetPath = currentURL.includes('/tenant-admin')
+                ? '/dashboard/tenant-admin/notifications'
+                : '/dashboard/employee/notifications';
             window.location.href = targetPath;
         }
     };
@@ -120,7 +112,6 @@ export function Header({
                                         </button>
                                     )}
                                 </div>
-
                                 <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
                                     {unreadNotifications.length > 0 ? (
                                         unreadNotifications.map((item) => (
@@ -137,7 +128,6 @@ export function Header({
                                         <div className="p-10 text-center text-slate-400 text-xs italic">No new updates</div>
                                     )}
                                 </div>
-
                                 <button
                                     onClick={handleViewHistory}
                                     className="w-full p-3 bg-slate-50 border-t border-slate-100 text-center text-[11px] font-bold text-slate-500 hover:text-indigo-600 flex items-center justify-center gap-2 uppercase"
@@ -150,13 +140,22 @@ export function Header({
 
                     <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
                         <div className="text-right hidden md:block">
-                            <p className="text-sm font-black text-slate-900 leading-none">{userData.fullName}</p>
+                            <div className="min-h-[16px] flex flex-col justify-center">
+                                {userData.fullName ? (
+                                    <p className="text-sm font-black text-slate-900 leading-none">
+                                        {userData.fullName}
+                                    </p>
+                                ) : (
+                                    /* The bar you see in your image - it will disappear once fullName exists */
+                                    <div className="w-24 h-4 bg-slate-200 animate-pulse rounded-md" />
+                                )}
+                            </div>
                             <p className="text-[10px] text-indigo-600 font-bold uppercase mt-1 tracking-wider">
                                 {userData.role.replace('_', ' ')}
                             </p>
                         </div>
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg ring-2 ring-white select-none">
-                            {userData.avatar}
+                            {userData.fullName ? userData.avatar : <div className="w-4 h-4 bg-white/20 animate-pulse rounded" />}
                         </div>
                     </div>
                 </div>
