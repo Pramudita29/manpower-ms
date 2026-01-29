@@ -953,7 +953,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
-                            { to: "worker-add", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
+                            { to: "addworker", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
                             { to: "employer-add", color: "blue", icon: <Building2 />, title: "New Employer", desc: "Add company to directory" },
                             { to: "job-demand-add", color: "purple", icon: <FilePlus />, title: "Post Demand", desc: "Create job requirement" },
                             { to: "subagent", color: "orange", icon: <Users />, title: "Sub Agents", desc: "Manage recruitment partners" },
