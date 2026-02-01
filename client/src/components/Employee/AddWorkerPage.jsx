@@ -30,6 +30,7 @@ export function AddWorkerPage({
     email: "",
     dob: "",
     passportNumber: "",
+    citizenshipNumber: "", // Added citizenshipNumber field
     contact: "",
     address: "",
     country: "Nepal",
@@ -71,6 +72,7 @@ export function AddWorkerPage({
         email: initialData.email || "",
         dob: initialData.dob ? new Date(initialData.dob).toISOString().split('T')[0] : "",
         passportNumber: initialData.passportNumber || "",
+        citizenshipNumber: initialData.citizenshipNumber || "", // Populate citizenshipNumber
         contact: initialData.contact || "",
         address: initialData.address || "",
         country: initialData.country || "Nepal",
@@ -124,12 +126,10 @@ export function AddWorkerPage({
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Sanitize data to prevent MongoDB "Cast to ObjectId failed" for optional IDs
     const sanitizedData = { ...formData };
     const idFields = ["employerId", "jobDemandId", "subAgentId"];
 
     idFields.forEach((field) => {
-      // If the field is empty, send null so the backend validation/Mongoose handles it correctly
       if (!sanitizedData[field] || sanitizedData[field].trim() === "") {
         sanitizedData[field] = null;
       }
@@ -170,6 +170,8 @@ export function AddWorkerPage({
               </div>
               <Input label="Contact Number *" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
               <Input label="Address *" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
+              {/* New Citizenship Number Field */}
+              <Input label="Citizenship Number" value={formData.citizenshipNumber} onChange={(e) => handleChange("citizenshipNumber", e.target.value)} />
             </CardContent>
           </Card>
 

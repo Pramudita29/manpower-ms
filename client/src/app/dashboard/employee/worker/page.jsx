@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { AddWorkerPage } from '../../../../components/Employee/AddWorkerPage';
 import { WorkerDetailsPage } from '../../../../components/Employee/WorkerDetailPage';
@@ -16,16 +16,7 @@ function WorkersContent() {
   const [subAgents, setSubAgents] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    fetchAllData(token);
-  }, [router]);
-
-  const fetchAllData = async (token) => {
+  const fetchAllData = useCallback(async (token) => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const [workerRes, empRes, demandRes, agentRes] = await Promise.all([
@@ -47,15 +38,26 @@ function WorkersContent() {
     } catch (err) {
       console.error("Failed to fetch data:", err);
     }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    fetchAllData(token);
+  }, [router, fetchAllData]);
+
+  const removeWorkerFromState = (workerId) => {
+    setWorkers((prev) => prev.filter((w) => w._id !== workerId));
+    setView('list');
+    setSelectedWorker(null);
   };
 
-  /**
-   * NEW: Local Delete Handler
-   * This removes the worker from the UI state immediately after backend confirmation
-   */
   const handleDeleteWorker = async (workerId) => {
-    const token = localStorage.getItem('token');
     if (!confirm("Are you sure you want to delete this worker?")) return;
+    const token = localStorage.getItem('token');
 
     try {
       const res = await fetch(`http://localhost:5000/api/workers/${workerId}`, {
@@ -65,10 +67,7 @@ function WorkersContent() {
 
       const result = await res.json();
       if (result.success) {
-        // Update local state to remove the worker instantly
-        setWorkers((prev) => prev.filter((w) => w._id !== workerId));
-        setView('list'); // Redirect back to list if deleting from details view
-        setSelectedWorker(null);
+        removeWorkerFromState(workerId);
       } else {
         alert(result.message || "Failed to delete worker");
       }
@@ -78,7 +77,14 @@ function WorkersContent() {
     }
   };
 
+  // Improved navigation handler to catch deletion signals
   const handleNavigate = (newView, data = null) => {
+    if (newView === 'list' && selectedWorker && view === 'details') {
+      // If we are returning from details to list, we refresh data 
+      // to ensure the status updates we made are reflected in the table.
+      const token = localStorage.getItem('token');
+      fetchAllData(token);
+    }
     setSelectedWorker(data);
     setView(newView);
   };
@@ -141,7 +147,7 @@ function WorkersContent() {
           workers={workers}
           onNavigate={handleNavigate}
           onSelectWorker={(w) => handleNavigate('details', w)}
-          onDeleteWorker={handleDeleteWorker} // Added this prop
+          onDeleteWorker={handleDeleteWorker}
         />
       )}
 
@@ -159,8 +165,18 @@ function WorkersContent() {
       {view === 'details' && selectedWorker && (
         <WorkerDetailsPage
           workerId={typeof selectedWorker === 'object' ? selectedWorker._id : selectedWorker}
-          onNavigate={handleNavigate}
-          onDeleteSuccess={() => handleDeleteWorker(selectedWorker._id)} // Handle delete from details
+          // INTERCEPT NAVIGATION:
+          // We wrap the navigation so that when the details page calls 
+          // onNavigate('list'), we can check if a delete happened.
+          onNavigate={(targetView, data) => {
+            if (targetView === 'list' && !data && view === 'details') {
+               // This handles cleaning up if the user deleted the worker 
+               // inside the Details page.
+               removeWorkerFromState(selectedWorker._id);
+            } else {
+               handleNavigate(targetView, data);
+            }
+          }}
         />
       )}
     </DashboardLayout>

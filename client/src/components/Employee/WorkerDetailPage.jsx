@@ -84,17 +84,25 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
 
   const handleStatusChange = async (stageIdentifier, newStatus) => {
     setIsUpdating(true);
+    
+    const originalTimeline = [...localTimeline];
+    setLocalTimeline(prev => 
+      prev.map(item => 
+        (item._id === stageIdentifier || item.stage === stageIdentifier) 
+          ? { ...item, status: newStatus } 
+          : item
+      )
+    );
+
     try {
       const token = localStorage.getItem('token');
       
-      // Update specific stage
       await axios.patch(
         `http://localhost:5000/api/workers/${worker._id}/stage/${stageIdentifier}`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Requirement: If any stage is rejected, top status should also be rejected
       if (newStatus === 'rejected') {
         await axios.patch(
           `http://localhost:5000/api/workers/${worker._id}`,
@@ -106,6 +114,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
       fetchWorkerData();
     } catch (err) {
       alert('Update failed');
+      setLocalTimeline(originalTimeline); 
       fetchWorkerData();
     } finally { setIsUpdating(false); }
   };
@@ -179,7 +188,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 variant="outline" 
                 onClick={handleDeleteWorker} 
                 disabled={isDeleting}
-                className="border-rose-200 text-rose-600 hover:bg-rose-50 h-12 w-12 rounded-xl p-0"
+                className="bg-rose-600 hover:bg-red-700 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] hover:shadow-[0_0_20px_rgba(225,29,72,0.6)] border-none h-12 w-12 rounded-xl p-0 transition-all duration-300 active:scale-90"
               >
                 {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
               </Button>
@@ -198,6 +207,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               </CardHeader>
               <CardContent className="pt-6 space-y-5">
                 <InfoRow icon={<ShieldCheck size={16} />} label="Passport No" value={worker.passportNumber} isCopyable />
+                <InfoRow icon={<Fingerprint size={16} />} label="Citizenship No" value={worker.citizenshipNumber || "N/A"} isCopyable />
                 <InfoRow icon={<Calendar size={16} />} label="Date of Birth" value={new Date(worker.createdAt).toLocaleDateString()} />
                 <InfoRow icon={<Phone size={16} />} label="Contact" value={worker.contact || "N/A"} />
                 <InfoRow icon={<Mail size={16} />} label="Email" value={worker.email || "No Email"} />
@@ -209,8 +219,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardContent className="pt-8 pb-8 px-8">
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Current Employer</p>
-                    <h3 className="text-xl font-bold text-white leading-tight">
+                    <p className="text-[15px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-2">Current Employer</p>
+                    <h3 className="text-xl text-black italic leading-normal">
                         {worker.employerId?.employerName || worker.employerId?.name || 'Pending Assignment'}
                     </h3>
                   </div>
@@ -220,8 +230,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 </div>
                 <div className="space-y-5">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400 font-bold uppercase text-[11px]">Role</span>
-                    <span className="font-bold text-indigo-400 bg-indigo-500/10 px-4 py-1.5 rounded-xl text-xs">
+                    <span className="text-slate-600 font-bold uppercase text-[13px]">Role</span>
+                    <span className="font-bold text-indigo-600 bg-indigo-600/10 px-4 py-1.5 rounded-xl text-xs">
                       {worker.jobDemandId?.jobTitle || 'General Worker'}
                     </span>
                   </div>
@@ -267,9 +277,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                         </TableCell>
                         <TableCell>
                           <Badge className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase border-none ${
-                             item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                             item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
-                             item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
+                               item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                               item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
+                               item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
                             }`}>
                             {item.status}
                           </Badge>
