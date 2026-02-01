@@ -9,7 +9,8 @@ import {
   Search,
   User,
   UserCheck,
-  X
+  X,
+  Trash2 // Added for delete action
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -28,7 +29,8 @@ import {
 export function WorkerManagementPage({
   workers = [],
   onNavigate,
-  onSelectWorker
+  onSelectWorker,
+  onDeleteWorker // Make sure to pass this from the parent
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -49,19 +51,24 @@ export function WorkerManagementPage({
     }
   };
 
-  // Helper to format stage names (e.g., "visa-processing" to "Visa Processing")
   const formatStage = (stage) => {
     if (!stage) return 'Not Started';
     return stage.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
-  return (
-    <div className="max-w-7xl mx-auto p-8 space-y-8 antialiased">
+  const handleDelete = (e, id) => {
+    e.stopPropagation(); // Prevents onSelectWorker from firing
+    if (onDeleteWorker) {
+      onDeleteWorker(id);
+    }
+  };
 
+  return (
+    <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 antialiased">
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">Worker Management</h1>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Worker Management</h1>
           <p className="text-slate-500 font-medium italic">Track processing stages and deployment status for all recruits.</p>
         </div>
         <Button
@@ -87,7 +94,11 @@ export function WorkerManagementPage({
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
                   <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
                 </div>
-                <div className={`p-4 bg-${stat.color}-50 rounded-2xl text-${stat.color}-600`}>
+                <div className={`p-4 rounded-2xl ${
+                  stat.color === 'indigo' ? 'bg-indigo-50 text-indigo-600' :
+                  stat.color === 'amber' ? 'bg-amber-50 text-amber-600' :
+                  'bg-emerald-50 text-emerald-600'
+                }`}>
                   <stat.icon size={28} />
                 </div>
               </div>
@@ -96,14 +107,14 @@ export function WorkerManagementPage({
         ))}
       </div>
 
-      {/* 3. Search & Filter Bar */}
+      {/* 3. Search Bar */}
       <div className="relative max-w-md group">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <Search className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
         </div>
         <Input
           placeholder="Search name or passport..."
-          className="pl-11 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-50 transition-all border-none ring-1 ring-slate-200"
+          className="pl-11 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all border-none ring-1 ring-slate-200"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -126,7 +137,6 @@ export function WorkerManagementPage({
                   <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Status</TableHead>
                   <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Current Stage</TableHead>
                   <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Employer</TableHead>
-                  <TableHead className="text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Sub-Agent</TableHead>
                   <TableHead className="text-right pr-8 text-[11px] uppercase font-bold text-slate-400 tracking-[0.1em]">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -138,7 +148,6 @@ export function WorkerManagementPage({
                       className="group hover:bg-slate-50/80 cursor-pointer transition-all border-b border-slate-50 last:border-0"
                       onClick={() => onSelectWorker(worker)}
                     >
-                      {/* Name Column */}
                       <TableCell className="py-6 pl-8">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
@@ -151,14 +160,12 @@ export function WorkerManagementPage({
                         </div>
                       </TableCell>
 
-                      {/* Passport Column */}
                       <TableCell>
                         <span className="font-mono text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-600">
-                          {worker.passportNumber}
+                          {worker.passportNumber || "N/A"}
                         </span>
                       </TableCell>
 
-                      {/* Status Column */}
                       <TableCell>
                         <Badge
                           variant={getStatusVariant(worker.status)}
@@ -168,7 +175,6 @@ export function WorkerManagementPage({
                         </Badge>
                       </TableCell>
 
-                      {/* Current Stage Column */}
                       <TableCell>
                         <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
                           <MapPin size={14} className="text-indigo-400" />
@@ -176,7 +182,6 @@ export function WorkerManagementPage({
                         </div>
                       </TableCell>
 
-                      {/* Employer Column */}
                       <TableCell>
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
                           <Briefcase size={14} className="text-slate-300" />
@@ -184,29 +189,30 @@ export function WorkerManagementPage({
                         </div>
                       </TableCell>
 
-                      {/* Sub-Agent Column */}
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                          <UserCheck size={14} className="text-slate-300" />
-                          {worker.subAgentId?.name || <span className="text-slate-300 italic">Direct</span>}
-                        </div>
-                      </TableCell>
-
-                      {/* Action Column */}
                       <TableCell className="text-right pr-8">
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-all">
-                          <ArrowUpRight size={18} />
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Trash Icon for deletion */}
+                          <button
+                            onClick={(e) => handleDelete(e, worker._id)}
+                            className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                            title="Delete Worker"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                          <div className="p-2 text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 rounded-full transition-all">
+                            <ArrowUpRight size={18} />
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-24 text-center">
+                    <TableCell colSpan={6} className="py-24 text-center">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <Search size={48} className="text-slate-100" />
                         <h3 className="text-slate-900 font-bold">No workers found</h3>
-                        <p className="text-slate-400 text-sm">Adjust your search filters to find what you're looking for.</p>
+                        <p className="text-slate-400 text-sm">Adjust your filters or add a new recruit.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -219,4 +225,3 @@ export function WorkerManagementPage({
     </div>
   );
 }
-

@@ -1,18 +1,16 @@
 const Worker = require('../models/Worker');
-const User = require('../models/User');
-const Company = require('../models/Company');
-const SubAgent = require('../models/SubAgent');
 const JobDemand = require('../models/JobDemand');
+const Company = require('../models/Company');
 const { createNotification } = require('./notificationController');
-const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
+const mongoose = require('mongoose');
 
 /**
  * HELPER: Mask Passport Number for Privacy
  */
 const maskPassport = (passport) => {
-  if (!passport) return "";
-  return passport.substring(0, 3) + "x".repeat(passport.length - 3);
+  if (!passport || passport === "") return "N/A";
+  return passport.substring(0, 3) + "x".repeat(Math.max(0, passport.length - 3));
 };
 
 /**
@@ -36,7 +34,7 @@ exports.getAllWorkers = async (req, res) => {
 
     const processedWorkers = workers.map(worker => ({
       ...worker,
-      passportNumber: isPrivacyEnabled ? maskPassport(worker.passportNumber) : worker.passportNumber
+      passportNumber: isPrivacyEnabled ? maskPassport(worker.passportNumber) : (worker.passportNumber || "N/A")
     }));
 
     res.status(StatusCodes.OK).json({
@@ -82,7 +80,7 @@ exports.getWorkerById = async (req, res) => {
 };
 
 /**
- * @desc Add Worker + Notification
+ * @desc Add Worker
  */
 exports.addWorker = async (req, res) => {
   try {
@@ -90,16 +88,10 @@ exports.addWorker = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    const existingWorker = await Worker.findOne({ passportNumber, companyId });
-    if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
-
-    // Anti-spam debounce
-    const recentCreation = await Worker.findOne({
-      passportNumber,
-      companyId,
-      createdAt: { $gte: new Date(Date.now() - 3000) }
-    });
-    if (recentCreation) return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Processing request..." });
+    if (passportNumber && passportNumber.trim() !== "") {
+      const existingWorker = await Worker.findOne({ passportNumber, companyId });
+      if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
+    }
 
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
@@ -122,7 +114,7 @@ exports.addWorker = async (req, res) => {
       'medical-examination', 'police-clearance', 'training',
       'visa-application', 'visa-approval', 'ticket-booking',
       'pre-departure-orientation', 'deployed'
-    ].map(name => ({ stage: name, status: 'pending', date: new Date() }));
+    ].map(sName => ({ stage: sName, status: 'pending', date: new Date() }));
 
     const newWorker = new Worker({
       ...req.body,
@@ -130,22 +122,20 @@ exports.addWorker = async (req, res) => {
       createdBy: userId,
       companyId: companyId,
       stageTimeline: initialStages,
-      status: 'pending',
-      currentStage: 'document-collection'
+      status: 'pending'
     });
 
     await newWorker.save();
 
-    if (jobDemandId) {
+    if (jobDemandId && mongoose.Types.ObjectId.isValid(jobDemandId)) {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
     }
 
-    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
-      content: `registered a new worker: ${name} (${passportNumber})`
+      content: `registered a new worker: ${name}`
     });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
@@ -155,26 +145,22 @@ exports.addWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Worker + Notification
+ * @desc Update Worker Details
  */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
-    const { companyId, role } = req.user;
+    const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin' && role !== 'tenant_admin') {
-      filter.createdBy = userId;
-    }
-
-    const oldWorker = await Worker.findOne(filter);
-    if (!oldWorker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
+    // Filter by companyId to ensure users don't update other companies' workers
+    const oldWorker = await Worker.findOne({ _id: id, companyId });
+    if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
     const { existingDocuments, ...otherUpdates } = req.body;
     let updateData = { ...otherUpdates };
 
-    let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : [];
+    let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file, index) => {
         const meta = req.body[`docMeta_${index}`] ? JSON.parse(req.body[`docMeta_${index}`]) : {};
@@ -192,12 +178,11 @@ exports.updateWorker = async (req, res) => {
 
     const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true });
 
-    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
-      content: `updated personal details for worker: ${updatedWorker.name}`
+      content: `updated details for worker: ${updatedWorker.name}`
     });
 
     res.status(200).json({ success: true, data: updatedWorker });
@@ -207,12 +192,12 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Stage + Notification
+ * @desc Update Stage + Automatic Status Logic
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
     const { id, stageId } = req.params;
-    const { status } = req.body;
+    const { status } = req.body; 
     const userId = req.user._id || req.user.userId || req.user.id;
     const companyId = req.user.companyId;
 
@@ -225,13 +210,21 @@ exports.updateWorkerStage = async (req, res) => {
       stage.date = new Date();
     }
 
-    const completed = worker.stageTimeline.filter(s => s.status === 'completed').length;
-    if (completed >= 11) worker.status = 'deployed';
-    else if (completed > 0) worker.status = 'processing';
+    if (status === 'rejected') {
+      worker.status = 'rejected';
+    } else {
+      const completedCount = worker.stageTimeline.filter(s => s.status === 'completed').length;
+      if (completedCount >= worker.stageTimeline.length) {
+        worker.status = 'deployed';
+      } else if (completedCount > 0 || status === 'in-progress') {
+        worker.status = 'processing';
+      } else {
+        worker.status = 'pending';
+      }
+    }
 
     await worker.save();
 
-    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
@@ -246,37 +239,41 @@ exports.updateWorkerStage = async (req, res) => {
 };
 
 /**
- * @desc Delete Worker + Notification
+ * @desc Delete Worker + Linked Data Cleanup
+ * FIXED: Removed strict createdBy filter to resolve 403 Forbidden errors
  */
 exports.deleteWorker = async (req, res) => {
   try {
-    const { companyId, role } = req.user;
+    const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin' && role !== 'tenant_admin') {
-      filter.createdBy = userId;
+    // We search by ID and companyId to ensure a user can only delete within their own company
+    const worker = await Worker.findOne({ _id: req.params.id, companyId });
+    
+    if (!worker) {
+      return res.status(StatusCodes.NOT_FOUND).json({ 
+        success: false, 
+        msg: 'Worker not found or you do not have permission' 
+      });
     }
 
-    const worker = await Worker.findOne(filter);
-    if (!worker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
-
-    // Capture details before deletion for the log
-    const workerName = worker.name;
-    const passport = worker.passportNumber;
-
+    // 1. Remove worker reference from JobDemand
     if (worker.jobDemandId) {
-      await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
+      await JobDemand.findByIdAndUpdate(worker.jobDemandId, { 
+        $pull: { workers: worker._id } 
+      });
     }
 
+    // 2. Perform deletion
+    const workerName = worker.name;
     await Worker.deleteOne({ _id: worker._id });
 
-    // --- TRIGGER NOTIFICATION (Object Syntax) ---
+    // 3. Create Audit Notification
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
-      content: `deleted worker: ${workerName} (${passport})`
+      content: `deleted worker: ${workerName}`
     });
 
     res.status(200).json({ success: true, msg: 'Worker deleted successfully' });

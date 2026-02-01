@@ -6,20 +6,24 @@ const { protect } = require('../middleware/auth');
 const {
   addWorker,
   getAllWorkers,
-  getWorkerById,      // New: for the details page
+  getWorkerById,
   updateWorker,
-  updateWorkerStage,   // New: for the timeline actions
+  updateWorkerStage,
+  deleteWorker, // 1. Add this import
 } = require('../controllers/workerController');
 
 // All worker routes protected
 router.use(protect);
 
 router.get('/', getAllWorkers);
-router.get('/:id', getWorkerById); // Fetch single worker details
+router.get('/:id', getWorkerById);
 router.post('/add', upload.array('files', 15), addWorker);
 router.put('/:id', upload.array('files', 10), updateWorker);
 
-// Specific route to update a stage status inside the timeline array
+// 2. Add this route for deletion
+router.delete('/:id', deleteWorker);
+
+// Specific route to update a stage status
 router.patch('/:id/stage/:stageId', updateWorkerStage);
 
 module.exports = router;
