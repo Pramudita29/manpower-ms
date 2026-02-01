@@ -1,44 +1,49 @@
 "use client";
 import axios from 'axios';
+import { RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import EmployeeDashboard from '../../../components/Employee/EmployeeDashboard';
 
 export default function EmployeePage() {
     const router = useRouter();
-    const [data, setData] = useState({ user: null, notifications: [], loading: true });
+    const [data, setData] = useState({ user: null, loading: true });
 
-    useEffect(() => {
-        const fetchInit = async () => {
-            const token = localStorage.getItem('token');
-            try {
-                const [dash, me] = await Promise.all([
-                    axios.get('http://localhost:5000/api/dashboard', { headers: { Authorization: `Bearer ${token}` } }),
-                    axios.get('http://localhost:5000/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-                ]);
+    const fetchUser = useCallback(async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return router.replace('/login');
 
-                setData({
-                    user: me.data.user,
-                    notifications: dash.data.data.notifications || [],
-                    loading: false
-                });
-            } catch (err) { router.replace('/login'); }
-        };
-        fetchInit();
+        try {
+            const me = await axios.get('http://localhost:5000/api/auth/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setData({ user: me.data?.data || me.data?.user || me.data, loading: false });
+        } catch (err) {
+            router.replace('/login');
+        }
     }, [router]);
 
-    if (data.loading) return null;
+    useEffect(() => { fetchUser(); }, [fetchUser]);
+
+    if (data.loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <RefreshCw className="animate-spin text-indigo-600" size={48} />
+        </div>
+    );
 
     return (
-        <DashboardLayout
-            role="employee"
-            user={data.user}
-            notifications={data.notifications}
-            onNavigate={(p) => router.push(`/dashboard/employee/${p}`)}
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
-        >
-          <EmployeeDashboard navigateTo={(path) => router.push(`/dashboard/employee/${path}`)} />
-        </DashboardLayout>
+        <>
+            <Toaster position="top-right" />
+            <DashboardLayout
+                role="employee"
+                user={data.user}
+                onNavigate={(path) => router.push(`/dashboard/employee/${path}`)}
+            >
+                {/* DashboardLayout will pass 'notifications' to this automatically via React.cloneElement */}
+                <EmployeeDashboard data={data} />
+            </DashboardLayout>
+        </>
     );
 }

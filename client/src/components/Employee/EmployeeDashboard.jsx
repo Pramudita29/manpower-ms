@@ -7,6 +7,7 @@ import {
     AtSign,
     Bell,
     Briefcase,
+    BriefcaseBusiness,
     Building2,
     CheckCircle,
     Clock as ClockIcon,
@@ -17,13 +18,16 @@ import {
     Paperclip,
     Plus,
     RefreshCw,
+    // ──── added for global search ────
+    Search,
     ShieldCheck,
     Trash2,
     UserCircle,
     UserPlus,
     Users,
+    X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast, Toaster } from "react-hot-toast";
 
 import { Badge } from "../ui/Badge";
@@ -555,6 +559,100 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
         return "Entity";
     }, [workersMap, employersMap, demandsMap, subAgentsMap]);
 
+    // ────────────────────────────────────────────────
+    //   GLOBAL SEARCH (added - nothing removed)
+    // ────────────────────────────────────────────────
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const searchRef = useRef(null);
+
+    const debounce = (func, delay) => {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => func(...args), delay);
+        };
+    };
+
+    const performSearch = useCallback(async (q) => {
+        if (!q || q.trim().length < 2) {
+            setSearchResults([]);
+            setShowSearchResults(false);
+            return;
+        }
+
+        setSearchLoading(true);
+        try {
+            const token = localStorage.getItem("token");
+            const res = await axios.get(`${API_BASE}/search`, {
+                params: { q: q.trim() },
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                setSearchResults(res.data.results || []);
+                setShowSearchResults(true);
+            }
+        } catch (err) {
+            console.error('Search failed', err);
+            toast.error('Search failed. Please try again.');
+        } finally {
+            setSearchLoading(false);
+        }
+    }, []);
+
+    const debouncedSearch = useCallback(debounce(performSearch, 400), [performSearch]);
+
+    useEffect(() => {
+        debouncedSearch(searchQuery);
+    }, [searchQuery, debouncedSearch]);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setShowSearchResults(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleResultClick = (item) => {
+        setSearchQuery('');
+        setShowSearchResults(false);
+
+        const id = item._id;
+        if (!id) {
+            toast.error("Cannot open item: missing ID");
+            return;
+        }
+
+        switch (item.type) {
+            case 'worker':
+                navigateTo(`worker?id=${id}`);
+                break;
+            case 'employer':
+                navigateTo(`employer?id=${id}`);
+                break;
+            case 'job-demand':
+                navigateTo(`job-demand?id=${id}`);
+                break;
+            case 'sub-agent':
+                navigateTo(`subagent?id=${id}`);
+                break;
+            case 'note':
+            case 'reminder':
+                toast.success(`Selected ${item.type}: ${item.content?.substring(0, 40) || 'Note'}...`);
+                break;
+            default:
+                toast.error(`Unknown entity type: ${item.type}`);
+                break;
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[70vh]">
@@ -569,7 +667,6 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
         { title: "Workers", value: formatStatValue(stats.workersInProcess), icon: <Users size={28} />, gradient: "from-emerald-600 to-teal-600", path: "worker" },
         { title: "Sub Agents", value: formatStatValue(stats.activeSubAgents), icon: <UserCircle size={28} />, gradient: "from-slate-700 to-slate-900", path: "subagent" },
         { title: "Priority Tasks", value: urgentCount, icon: <AlertCircle size={28} />, gradient: "from-orange-500 to-rose-600" },
-   
     ];
 
     return (
@@ -622,6 +719,118 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                             </Button>
                         </div>
                     </div>
+                </div>
+
+                {/* ──── GLOBAL SEARCH BAR (added here) ──── */}
+                <div ref={searchRef} className="relative w-full">
+                    <div className="relative">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={() => setShowSearchResults(true)}
+                            placeholder="Search workers, employers, job demands, sub-agents..."
+                            className="w-full pl-14 pr-14 py-4 rounded-2xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none bg-white shadow-md text-base placeholder:text-slate-400"
+                        />
+                        {searchLoading && (
+                            <RefreshCw className="absolute right-5 top-1/2 -translate-y-1/2 animate-spin text-indigo-600" size={22} />
+                        )}
+                        {searchQuery && !searchLoading && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                            >
+                                <X size={22} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Search Results Dropdown */}
+                    {showSearchResults && (
+                        <div className="absolute z-50 mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[60vh] overflow-y-auto">
+                            {searchResults.length === 0 ? (
+                                <div className="p-10 text-center text-slate-500">
+                                    No results found for <span className="font-medium">"{searchQuery}"</span>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 sticky top-0 border-b">
+                                        Results ({searchResults.length})
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {searchResults.map((item) => {
+                                            let iconComponent = <Search size={20} />;
+                                            let bgColor = "bg-slate-600";
+
+                                            switch (item.type) {
+                                                case 'worker':
+                                                    iconComponent = <Users size={20} />;
+                                                    bgColor = "bg-teal-600";
+                                                    break;
+                                                case 'employer':
+                                                    iconComponent = <Building2 size={20} />;
+                                                    bgColor = "bg-emerald-600";
+                                                    break;
+                                                case 'job-demand':
+                                                    iconComponent = <BriefcaseBusiness size={20} />;
+                                                    bgColor = "bg-orange-600";
+                                                    break;
+                                                case 'sub-agent':
+                                                    iconComponent = <UserCircle size={20} />;
+                                                    bgColor = "bg-purple-600";
+                                                    break;
+                                                case 'note':
+                                                case 'reminder':
+                                                    iconComponent = <FileText size={20} />;
+                                                    bgColor = "bg-amber-600";
+                                                    break;
+                                            }
+
+                                            let subtitle = '';
+                                            switch (item.type) {
+                                                case 'worker':
+                                                    subtitle = [item.passportNumber, item.phone || item.contact].filter(Boolean).join(' • ') || item.status || 'Worker';
+                                                    break;
+                                                case 'employer':
+                                                    subtitle = item.country || 'Employer';
+                                                    break;
+                                                case 'job-demand':
+                                                    subtitle = [item.employerName || item.companyName, item.country].filter(Boolean).join(' • ') || 'Demand';
+                                                    break;
+                                                case 'sub-agent':
+                                                    subtitle = [item.phone || item.contact, item.email].filter(Boolean).join(' • ') || 'Sub-agent';
+                                                    break;
+                                                default:
+                                                    subtitle = item.category || item.status || '—';
+                                            }
+
+                                            return (
+                                                <button
+                                                    key={item._id}
+                                                    onClick={() => handleResultClick(item)}
+                                                    className="w-full px-6 py-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-5"
+                                                >
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 ${bgColor}`}>
+                                                        {iconComponent}
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-slate-900 truncate text-base">
+                                                            {item.title || item.name || item.employerName || item.jobTitle || item.content?.substring(0, 60) || '—'}
+                                                        </p>
+                                                        <p className="text-sm text-slate-500 mt-1 truncate">
+                                                            {item.type.toUpperCase()} • {subtitle}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Stat Cards */}
