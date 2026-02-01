@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Users } from 'lucide-react';
+import { RefreshCw, Search, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
@@ -68,7 +68,7 @@ export function SubAgentListPage({ subAgents = [], onSelectSubAgent, isLoading }
                 <TableRow>
                   <TableCell colSpan={5} className="h-32 text-center text-gray-500">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <RefreshCw className="animate-spin text-blue-600" size={32} />
                       Loading agent data...
                     </div>
                   </TableCell>
@@ -86,7 +86,7 @@ export function SubAgentListPage({ subAgents = [], onSelectSubAgent, isLoading }
                     className="hover:bg-gray-50/50 cursor-pointer transition-colors group"
                     onClick={() => onSelectSubAgent(agent)}
                   >
-                    <TableCell className="font-semibold text-blue-600">
+                    <TableCell className="font-semibold text-blue-600 group-hover:underline">
                       {agent.name}
                     </TableCell>
                     <TableCell className="text-gray-600">{agent.country}</TableCell>
@@ -94,7 +94,6 @@ export function SubAgentListPage({ subAgents = [], onSelectSubAgent, isLoading }
                       <div className="flex items-center justify-center gap-2">
                         <Users size={16} className="text-gray-400" />
                         <span className="font-bold text-gray-900">
-                          {/* The backend now provides totalWorkersBrought via aggregation */}
                           {agent.totalWorkersBrought || 0}
                         </span>
                       </div>
