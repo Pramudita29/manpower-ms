@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 const WorkerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   dob: { type: Date, required: true },
-  passportNumber: { type: String, required: true, unique: true },
+  passportNumber: { type: String, required: false, unique: true },
+  // ADDED: Citizenship Number field
+  citizenshipNumber: { type: String, required: false }, 
   contact: { type: String, required: true },
   address: { type: String, required: true },
   email: { type: String },
@@ -13,12 +15,12 @@ const WorkerSchema = new mongoose.Schema({
   employerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employer',
-    required: true,
+    required: false,
   },
   jobDemandId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'JobDemand',
-    required: true,
+    required: false,
   },
   subAgentId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -62,7 +64,7 @@ const WorkerSchema = new mongoose.Schema({
     {
       category: {
         type: String,
-        required: true,
+        required: false,
         enum: [
           "Passport",
           "Birth Certificate",
@@ -114,5 +116,7 @@ const WorkerSchema = new mongoose.Schema({
 WorkerSchema.index({ createdBy: 1 });
 WorkerSchema.index({ companyId: 1 });
 WorkerSchema.index({ passportNumber: 1 });
+// Optional: Add index for citizenshipNumber if you plan to search by it often
+WorkerSchema.index({ citizenshipNumber: 1 }); 
 
 module.exports = mongoose.model('Worker', WorkerSchema);

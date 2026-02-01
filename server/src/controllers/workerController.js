@@ -6,11 +6,11 @@ const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 
 /**
- * HELPER: Mask Passport Number for Privacy
+ * HELPER: Mask Sensitive Information (Passport/Citizenship) for Privacy
  */
-const maskPassport = (passport) => {
-  if (!passport || passport === "") return "N/A";
-  return passport.substring(0, 3) + "x".repeat(Math.max(0, passport.length - 3));
+const maskSensitiveInfo = (value) => {
+  if (!value || value === "") return "N/A";
+  return value.substring(0, 3) + "x".repeat(Math.max(0, value.length - 3));
 };
 
 /**
@@ -34,7 +34,9 @@ exports.getAllWorkers = async (req, res) => {
 
     const processedWorkers = workers.map(worker => ({
       ...worker,
-      passportNumber: isPrivacyEnabled ? maskPassport(worker.passportNumber) : (worker.passportNumber || "N/A")
+      passportNumber: isPrivacyEnabled ? maskSensitiveInfo(worker.passportNumber) : (worker.passportNumber || "N/A"),
+      // Added masking for citizenshipNumber
+      citizenshipNumber: isPrivacyEnabled ? maskSensitiveInfo(worker.citizenshipNumber) : (worker.citizenshipNumber || "N/A")
     }));
 
     res.status(StatusCodes.OK).json({
@@ -70,7 +72,9 @@ exports.getWorkerById = async (req, res) => {
 
     const company = await Company.findById(companyId).select('settings');
     if (company?.settings?.isPassportPrivate && role === 'employee') {
-      worker.passportNumber = maskPassport(worker.passportNumber);
+      worker.passportNumber = maskSensitiveInfo(worker.passportNumber);
+      // Added masking for citizenshipNumber
+      worker.citizenshipNumber = maskSensitiveInfo(worker.citizenshipNumber);
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: worker });
@@ -117,7 +121,7 @@ exports.addWorker = async (req, res) => {
     ].map(sName => ({ stage: sName, status: 'pending', date: new Date() }));
 
     const newWorker = new Worker({
-      ...req.body,
+      ...req.body, // citizenshipNumber is captured here from req.body automatically
       documents: initialDocs,
       createdBy: userId,
       companyId: companyId,
@@ -153,12 +157,11 @@ exports.updateWorker = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    // Filter by companyId to ensure users don't update other companies' workers
     const oldWorker = await Worker.findOne({ _id: id, companyId });
     if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
     const { existingDocuments, ...otherUpdates } = req.body;
-    let updateData = { ...otherUpdates };
+    let updateData = { ...otherUpdates }; // citizenshipNumber is included in otherUpdates
 
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
     if (req.files && req.files.length > 0) {
@@ -240,14 +243,12 @@ exports.updateWorkerStage = async (req, res) => {
 
 /**
  * @desc Delete Worker + Linked Data Cleanup
- * FIXED: Removed strict createdBy filter to resolve 403 Forbidden errors
  */
 exports.deleteWorker = async (req, res) => {
   try {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    // We search by ID and companyId to ensure a user can only delete within their own company
     const worker = await Worker.findOne({ _id: req.params.id, companyId });
     
     if (!worker) {
@@ -257,18 +258,15 @@ exports.deleteWorker = async (req, res) => {
       });
     }
 
-    // 1. Remove worker reference from JobDemand
     if (worker.jobDemandId) {
       await JobDemand.findByIdAndUpdate(worker.jobDemandId, { 
         $pull: { workers: worker._id } 
       });
     }
 
-    // 2. Perform deletion
     const workerName = worker.name;
     await Worker.deleteOne({ _id: worker._id });
 
-    // 3. Create Audit Notification
     await createNotification({
       companyId,
       createdBy: userId,
