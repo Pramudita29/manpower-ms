@@ -32,14 +32,23 @@ const createNotification = async ({ companyId, createdBy, category, content } = 
 const getNotifications = async (req, res) => {
     try {
         const companyId = req.user.companyId;
+        const userId = String(req.user?._id || req.user?.id);
+
         const notifications = await Notification.find({ companyId })
             .populate('createdBy', 'fullName')
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(50)
+            .lean();
 
-        res.status(StatusCodes.OK).json({ success: true, data: notifications });
+        const updatedNotifications = notifications.map(notif => ({
+            ...notif,
+            // Ensure this logic is solid:
+            isRead: notif.isReadBy ? notif.isReadBy.map(id => String(id)).includes(userId) : false
+        }));
+
+        res.status(200).json({ success: true, data: updatedNotifications });
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Error fetching notifications" });
+        res.status(500).json({ success: false });
     }
 };
 
@@ -128,7 +137,6 @@ const getWeeklySummary = async (req, res) => {
 module.exports = {
     createNotification,
     getNotifications,
-    markAsRead: async (req, res) => { /* existing single mark logic */ },
     markAllAsRead,
     getWeeklySummary
 };
