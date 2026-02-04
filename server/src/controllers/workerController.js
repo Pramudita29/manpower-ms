@@ -14,6 +14,20 @@ const maskSensitiveInfo = (value) => {
 };
 
 /**
+ * HELPER: Clean Sparse Fields
+ * Converts empty strings to undefined so MongoDB Sparse Index ignores them
+ */
+const sanitizeSparseFields = (data) => {
+  const fields = ['passportNumber', 'citizenshipNumber'];
+  fields.forEach(field => {
+    if (data[field] === "" || (typeof data[field] === 'string' && data[field].trim() === "")) {
+      data[field] = undefined;
+    }
+  });
+  return data;
+};
+
+/**
  * @desc Get all Workers
  */
 exports.getAllWorkers = async (req, res) => {
@@ -35,7 +49,6 @@ exports.getAllWorkers = async (req, res) => {
     const processedWorkers = workers.map(worker => ({
       ...worker,
       passportNumber: isPrivacyEnabled ? maskSensitiveInfo(worker.passportNumber) : (worker.passportNumber || "N/A"),
-      // Added masking for citizenshipNumber
       citizenshipNumber: isPrivacyEnabled ? maskSensitiveInfo(worker.citizenshipNumber) : (worker.citizenshipNumber || "N/A")
     }));
 
@@ -73,7 +86,6 @@ exports.getWorkerById = async (req, res) => {
     const company = await Company.findById(companyId).select('settings');
     if (company?.settings?.isPassportPrivate && role === 'employee') {
       worker.passportNumber = maskSensitiveInfo(worker.passportNumber);
-      // Added masking for citizenshipNumber
       worker.citizenshipNumber = maskSensitiveInfo(worker.citizenshipNumber);
     }
 
@@ -88,13 +100,21 @@ exports.getWorkerById = async (req, res) => {
  */
 exports.addWorker = async (req, res) => {
   try {
-    const { passportNumber, jobDemandId, name } = req.body;
+    const { jobDemandId, name } = req.body;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    if (passportNumber && passportNumber.trim() !== "") {
-      const existingWorker = await Worker.findOne({ passportNumber, companyId });
-      if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
+    // SANITIZE: Convert empty strings to undefined for Sparse Index
+    const sanitizedData = sanitizeSparseFields({ ...req.body });
+
+    // Explicit Duplicate Checks for better Error Messages
+    if (sanitizedData.passportNumber) {
+      const existing = await Worker.findOne({ passportNumber: sanitizedData.passportNumber, companyId });
+      if (existing) return res.status(400).json({ msg: 'Passport number already exists' });
+    }
+    if (sanitizedData.citizenshipNumber) {
+      const existing = await Worker.findOne({ citizenshipNumber: sanitizedData.citizenshipNumber, companyId });
+      if (existing) return res.status(400).json({ msg: 'Citizenship number already exists' });
     }
 
     let initialDocs = [];
@@ -121,7 +141,7 @@ exports.addWorker = async (req, res) => {
     ].map(sName => ({ stage: sName, status: 'pending', date: new Date() }));
 
     const newWorker = new Worker({
-      ...req.body, // citizenshipNumber is captured here from req.body automatically
+      ...sanitizedData,
       documents: initialDocs,
       createdBy: userId,
       companyId: companyId,
@@ -160,8 +180,9 @@ exports.updateWorker = async (req, res) => {
     const oldWorker = await Worker.findOne({ _id: id, companyId });
     if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    const { existingDocuments, ...otherUpdates } = req.body;
-    let updateData = { ...otherUpdates }; // citizenshipNumber is included in otherUpdates
+    // SANITIZE: Convert empty strings to undefined for Sparse Index
+    const sanitizedData = sanitizeSparseFields({ ...req.body });
+    const { existingDocuments, ...otherUpdates } = sanitizedData;
 
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
     if (req.files && req.files.length > 0) {
@@ -177,9 +198,14 @@ exports.updateWorker = async (req, res) => {
       });
       updatedDocsList = [...updatedDocsList, ...newDocs];
     }
-    updateData.documents = updatedDocsList;
+    
+    const updateData = { ...otherUpdates, documents: updatedDocsList };
 
-    const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true });
+    const updatedWorker = await Worker.findByIdAndUpdate(
+      id, 
+      { $set: updateData }, 
+      { new: true, runValidators: true }
+    );
 
     await createNotification({
       companyId,

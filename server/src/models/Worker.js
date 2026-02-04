@@ -3,20 +3,31 @@ const mongoose = require('mongoose');
 const WorkerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   dob: { type: Date, required: true },
-  // FIX: Added 'sparse' to allow multiple null/empty values while keeping real numbers unique
+  
+  // UNIQUE & SPARSE: Allows multiple workers to have NO passport, 
+  // but if they DO have one, it must be unique.
   passportNumber: { 
     type: String, 
     required: false, 
     unique: true, 
-    sparse: true 
+    sparse: true,
+    trim: true 
   },
-  citizenshipNumber: { type: String, required: false }, 
+  
+  // UNIQUE & SPARSE: Applied here as well
+  citizenshipNumber: { 
+    type: String, 
+    required: false, 
+    unique: true, 
+    sparse: true,
+    trim: true 
+  }, 
+
   contact: { type: String, required: true },
   address: { type: String, required: true },
   email: { type: String },
   country: { type: String, default: 'Nepal' },
 
-  // Relational IDs
   employerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employer',
@@ -48,17 +59,10 @@ const WorkerSchema = new mongoose.Schema({
   currentStage: {
     type: String,
     enum: [
-      'document-collection',
-      'document-verification',
-      'interview',
-      'medical-examination',
-      'police-clearance',
-      'training',
-      'visa-application',
-      'visa-approval',
-      'ticket-booking',
-      'pre-departure-orientation',
-      'deployed'
+      'document-collection', 'document-verification', 'interview',
+      'medical-examination', 'police-clearance', 'training',
+      'visa-application', 'visa-approval', 'ticket-booking',
+      'pre-departure-orientation', 'deployed'
     ],
     default: 'document-collection'
   },
@@ -69,14 +73,9 @@ const WorkerSchema = new mongoose.Schema({
         type: String,
         required: false,
         enum: [
-          "Passport",
-          "Birth Certificate",
-          "Citizenship Certificate",
-          "Medical Certificate",
-          "Police Clearance",
-          "Educational Certificate",
-          "Passport Photos",
-          "Other"
+          "Passport", "Birth Certificate", "Citizenship Certificate",
+          "Medical Certificate", "Police Clearance", "Educational Certificate",
+          "Passport Photos", "Other"
         ],
         default: 'Other'
       },
@@ -115,12 +114,10 @@ const WorkerSchema = new mongoose.Schema({
   },
 }, { 
   timestamps: true,
-  
   toJSON: { virtuals: true },
   toObject: { virtuals: true } 
 });
 
-// VIRTUAL: Match frontend 'fullName' property to 'name'
 WorkerSchema.virtual('fullName').get(function() {
   return this.name;
 });
@@ -129,7 +126,6 @@ WorkerSchema.virtual('fullName').get(function() {
 WorkerSchema.index({ createdBy: 1 });
 WorkerSchema.index({ companyId: 1 });
 WorkerSchema.index({ jobDemandId: 1 });
-// passportNumber index is REMOVED here because unique: true above creates it automatically
-WorkerSchema.index({ citizenshipNumber: 1 }); 
+// passportNumber and citizenshipNumber indexes are handled by 'unique: true' above
 
 module.exports = mongoose.model('Worker', WorkerSchema);
