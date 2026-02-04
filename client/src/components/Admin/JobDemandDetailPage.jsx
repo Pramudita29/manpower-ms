@@ -9,7 +9,8 @@ import {
     Users, 
     ExternalLink,
     DollarSign,
-    Calendar
+    Calendar,
+    Loader2 
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -21,28 +22,64 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
     const [jobDemand, setJobDemand] = useState(initialData);
     const [loading, setLoading] = useState(false);
 
+    // Helper to extract ID regardless of whether it's a string or MongoDB $oid object
     const getNormalizedId = (data) => data?._id?.$oid || data?._id;
 
     useEffect(() => {
         const fetchFullDetails = async () => {
             const id = getNormalizedId(initialData);
             if (!id || id === "undefined") return;
+            
             setLoading(true);
             try {
-                const response = await fetch(`/api/job-demands/${id}`);
+                const token = localStorage.getItem('token');
+                
+                // Pointing to absolute Backend URL + Adding Auth Headers
+                const response = await fetch(`http://localhost:5000/api/job-demands/${id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+
                 const result = await response.json();
-                if (result.success) setJobDemand(result.data);
-            } catch (err) { console.error(err); } 
-            finally { setLoading(false); }
+                
+                if (result.success) {
+                    setJobDemand(result.data);
+                } else {
+                    console.error("API Error:", result.error);
+                }
+            } catch (err) { 
+                console.error("Fetch Network Error:", err); 
+            } finally { 
+                setLoading(false); 
+            }
         };
+
         fetchFullDetails();
     }, [initialData?._id]);
 
-    if (!jobDemand) return null;
+    // Loading State
+    if (loading && !jobDemand?.workers) {
+        return (
+            <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                <Loader2 className="animate-spin text-blue-500" size={40} />
+                <p className="text-gray-500 font-medium font-mono text-xs uppercase tracking-widest">Synchronizing Demand Data...</p>
+            </div>
+        );
+    }
+
+    if (!jobDemand) return (
+        <div className="p-8 text-center text-gray-500">Demand data not available.</div>
+    );
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-            {/* 1. Refined Header Bar (Edit Button Removed) */}
+            {/* 1. Header Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 border-b border-gray-100 pb-6">
                 <div className="flex items-center gap-4">
                     <Button 
@@ -69,9 +106,9 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left Column - Main Details */}
+                {/* Left Column */}
                 <div className="lg:col-span-8 space-y-6">
-                    {/* Fulfillment Quick Stats */}
+                    {/* Fulfillment Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {[
                             { label: 'Required', val: jobDemand.requiredWorkers, icon: Users, bg: 'bg-blue-50', text: 'text-blue-600' },
@@ -92,7 +129,7 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                         ))}
                     </div>
 
-                    {/* Description Card */}
+                    {/* Description */}
                     <Card className="border-none shadow-sm ring-1 ring-gray-100 rounded-2xl overflow-hidden bg-white">
                         <CardHeader className="border-b border-gray-50 px-6 py-4">
                             <CardTitle className="text-sm font-bold text-gray-800 flex items-center gap-2">
@@ -111,16 +148,18 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                                 </div>
                             </div>
                             <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap italic border-l-2 border-blue-50 pl-4">
-                                {jobDemand.description || 'No detailed description provided for this position.'}
+                                {jobDemand.description || 'No detailed description provided.'}
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Assigned Workers Table */}
+                    {/* Workers Table - THIS SHOWS YOUR ASSIGNED CANDIDATES */}
                     <Card className="border-none shadow-sm ring-1 ring-gray-100 rounded-2xl overflow-hidden bg-white">
                         <CardHeader className="px-6 py-4 border-b border-gray-50 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-bold text-gray-800">Linked Candidates</CardTitle>
-                            <Badge className="bg-blue-50 text-blue-700 border-none text-[10px] px-2 font-bold">{jobDemand.workers?.length || 0} Assigned</Badge>
+                            <Badge className="bg-blue-50 text-blue-700 border-none text-[10px] px-2 font-bold">
+                                {jobDemand.workers?.length || 0} Assigned
+                            </Badge>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
@@ -135,8 +174,12 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                                     {jobDemand.workers?.length > 0 ? jobDemand.workers.map((w) => (
                                         <TableRow key={w._id} className="hover:bg-gray-50/50 transition-colors border-b border-gray-50 last:border-0">
                                             <TableCell className="pl-6 py-3">
-                                                <div className="font-bold text-gray-900 text-sm">{w.fullName || w.name}</div>
-                                                <div className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">{w.passportNumber || 'No Passport'}</div>
+                                                <div className="font-bold text-gray-900 text-sm">
+                                                    {w.name || w.fullName || "Unnamed Worker"}
+                                                </div>
+                                                <div className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
+                                                    {w.passportNumber || 'No Passport Info'}
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className="text-[9px] uppercase border-gray-200 text-gray-500 font-bold px-2 py-0">
@@ -150,7 +193,7 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                                     )) : (
                                         <TableRow>
                                             <TableCell colSpan={3} className="text-center py-10 text-gray-400 text-sm italic">
-                                                No candidates currently assigned.
+                                                No candidates currently assigned to this demand.
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -160,7 +203,7 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                     </Card>
                 </div>
 
-                {/* Right Column - Metadata Sidebar */}
+                {/* Sidebar */}
                 <div className="lg:col-span-4 space-y-6">
                     <Card className="border-none shadow-sm ring-1 ring-gray-100 rounded-2xl bg-white">
                         <CardHeader className="px-6 py-4 border-b border-gray-50">

@@ -3,8 +3,13 @@ const mongoose = require('mongoose');
 const WorkerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   dob: { type: Date, required: true },
-  passportNumber: { type: String, required: false, unique: true },
-  // ADDED: Citizenship Number field
+  // FIX: Added 'sparse' to allow multiple null/empty values while keeping real numbers unique
+  passportNumber: { 
+    type: String, 
+    required: false, 
+    unique: true, 
+    sparse: true 
+  },
   citizenshipNumber: { type: String, required: false }, 
   contact: { type: String, required: true },
   address: { type: String, required: true },
@@ -40,7 +45,6 @@ const WorkerSchema = new mongoose.Schema({
     lowercase: true,
   },
 
-  // UPDATED: Added more stages to match the frontend 11-stage pipeline
   currentStage: {
     type: String,
     enum: [
@@ -59,7 +63,6 @@ const WorkerSchema = new mongoose.Schema({
     default: 'document-collection'
   },
 
-  // UPDATED: Added category, fileName, and fileSize to support the new upload UI
   documents: [
     {
       category: {
@@ -110,13 +113,23 @@ const WorkerSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true } 
+});
 
-// Indexing for performance
+// VIRTUAL: Match frontend 'fullName' property to 'name'
+WorkerSchema.virtual('fullName').get(function() {
+  return this.name;
+});
+
+// --- INDEXING ---
 WorkerSchema.index({ createdBy: 1 });
 WorkerSchema.index({ companyId: 1 });
-WorkerSchema.index({ passportNumber: 1 });
-// Optional: Add index for citizenshipNumber if you plan to search by it often
+WorkerSchema.index({ jobDemandId: 1 });
+// passportNumber index is REMOVED here because unique: true above creates it automatically
 WorkerSchema.index({ citizenshipNumber: 1 }); 
 
 module.exports = mongoose.model('Worker', WorkerSchema);

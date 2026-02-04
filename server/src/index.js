@@ -21,22 +21,25 @@ const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/manpower_ms';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
-// Middleware
+// 1. Essential App Settings
+app.set('trust proxy', 1);
+
+// 2. Optimized Middleware
 app.use(cors({
     origin: CLIENT_URL,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'], // Crucial for our new fetch logic
     credentials: true,
 }));
 
-/** * UPDATED: Increased limits to 5MB to handle Base64 image strings 
- * Place this BEFORE your routes
- */
+// Body Parsers (placed before routes)
 app.use(express.json({ limit: '5MB' }));
 app.use(express.urlencoded({ limit: '5MB', extended: true }));
 
+// Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
+// 3. API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employers', employerRoutes);
 app.use('/api/job-demands', jobDemandRoutes);
@@ -53,7 +56,16 @@ app.get('/', (req, res) => {
     res.status(200).json({ status: "OK", message: "Manpower MS API Running" });
 });
 
-// Database & Server Start
+// 4. Global Error Handling Middleware (The "Safety Net")
+app.use((err, req, res, next) => {
+    console.error(`[Error] ${err.message}`);
+    res.status(err.status || 500).json({
+        success: false,
+        error: err.message || "Internal Server Error"
+    });
+});
+
+// 5. Database & Server Start
 const startServer = async () => {
     try {
         await mongoose.connect(MONGO_URI);

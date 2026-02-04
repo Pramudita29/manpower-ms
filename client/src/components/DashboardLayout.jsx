@@ -61,14 +61,12 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
             const res = await axios.get('http://localhost:5000/api/dashboard', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            // These objects now contain 'isRead' as handled by your updated backend controller
             setNotifications(res.data?.data?.notifications || []);
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
         }
     }, []);
 
-    // Trigger profile and notification fetch on load
     useEffect(() => {
         fetchUserProfile();
         fetchNotifications();
@@ -87,7 +85,6 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         newSocket.emit('join', memoizedUser.id);
 
         newSocket.on('newNotification', (notif) => {
-            // Ensure new socket notifications are marked as isRead: false initially
             setNotifications(prev => [{ ...notif, isRead: false }, ...prev]);
             toast(notif.content, { icon: '🔔', position: 'bottom-right' });
         });
@@ -108,7 +105,6 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
             });
 
             if (res.data.success) {
-                // Instantly update local state so they disappear without waiting for refresh
                 setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                 toast.success("All caught up!");
             }
@@ -137,7 +133,9 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
                     {React.Children.map(children, child => {
-                        if (React.isValidElement(child)) {
+                        // FIX: Only clone and inject props into valid React Components, 
+                        // not primitive HTML strings (like "div", "main", etc)
+                        if (React.isValidElement(child) && typeof child.type !== 'string') {
                             return React.cloneElement(child, {
                                 notifications,
                                 onMarkAllRead: handleMarkAllRead,

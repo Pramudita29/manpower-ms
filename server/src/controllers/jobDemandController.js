@@ -1,25 +1,52 @@
 const JobDemand = require('../models/JobDemand');
 const Employer = require('../models/Employers');
 const User = require('../models/User');
+const Worker = require('../models/Worker'); 
 const { createNotification } = require('./notificationController');
 const { StatusCodes } = require('http-status-codes');
+const mongoose = require('mongoose');
 
 /**
- * @desc    Get all Job Demands (Company-wide)
- * @route   GET /api/v1/demands
+ * @desc    Get all Job Demands (Company-wide) with Live Fulfillment Counts
+ * @route   GET /api/job-demands
  */
 exports.getJobDemands = async (req, res) => {
   try {
     const { companyId } = req.user;
+
+    if (!companyId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, error: "Company context missing" });
+    }
+
+    // 1. Fetch basic demand info
     const jobDemands = await JobDemand.find({ companyId })
       .populate('employerId', 'employerName')
       .populate('createdBy', 'fullName')
       .sort({ createdAt: -1 });
 
+    // 2. LIVE COUNT SYNC: For each demand, find how many workers actually reference it
+    // This ensures your 2/5 fulfillment shows up correctly on the list page
+    const dataWithLiveCounts = await Promise.all(jobDemands.map(async (jd) => {
+      const actualWorkerCount = await Worker.countDocuments({ 
+        jobDemandId: jd._id,
+        companyId: companyId 
+      });
+
+      const demandObj = jd.toObject();
+      
+      // If the internal array is out of sync, we mock it with the correct length
+      // so the frontend jd.workers.length reads the correct count.
+      if (!demandObj.workers || demandObj.workers.length !== actualWorkerCount) {
+        demandObj.workers = new Array(actualWorkerCount).fill({}); 
+      }
+      
+      return demandObj;
+    }));
+
     res.status(StatusCodes.OK).json({
       success: true,
-      count: jobDemands.length,
-      data: jobDemands
+      count: dataWithLiveCounts.length,
+      data: dataWithLiveCounts
     });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
@@ -27,33 +54,66 @@ exports.getJobDemands = async (req, res) => {
 };
 
 /**
- * @desc    Get Single Job Demand
- * @route   GET /api/v1/demands/:id
+ * @desc    Get Single Job Demand with Merged Workers (Internal + Referenced)
+ * @route   GET /api/job-demands/:id
  */
 exports.getJobDemandById = async (req, res) => {
   try {
+    const { id } = req.params;
     const { companyId } = req.user;
-    const jobDemand = await JobDemand.findOne({ _id: req.params.id, companyId })
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false, 
+        error: "Invalid Job Demand ID format" 
+      });
+    }
+
+    let jobDemandDoc = await JobDemand.findOne({ _id: id, companyId })
       .populate('employerId', 'employerName')
       .populate('createdBy', 'fullName')
       .populate({
         path: 'workers',
-        select: 'name fullName status currentStage passportNumber'
+        select: 'name fullName status currentStage passportNumber citizenshipNumber contact contactNumber',
       });
 
-    if (!jobDemand) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Job Demand not found" });
+    if (!jobDemandDoc) {
+      return res.status(StatusCodes.NOT_FOUND).json({ 
+        success: false, 
+        error: "Job Demand not found" 
+      });
     }
 
-    res.status(StatusCodes.OK).json({ success: true, data: jobDemand });
+    // Reverse lookup to find workers who reference this ID but aren't in the array
+    const workersByRef = await Worker.find({ 
+      jobDemandId: id,
+      companyId: companyId 
+    }).select('name fullName status currentStage passportNumber citizenshipNumber contact contactNumber');
+
+    // Merge logic to ensure no candidate is missed
+    const workerMap = new Map();
+    if (jobDemandDoc.workers) {
+      jobDemandDoc.workers.forEach(w => workerMap.set(w._id.toString(), w));
+    }
+    workersByRef.forEach(w => workerMap.set(w._id.toString(), w));
+
+    const jobDemandData = jobDemandDoc.toObject();
+    jobDemandData.workers = Array.from(workerMap.values());
+
+    res.status(StatusCodes.OK).json({ 
+      success: true, 
+      data: jobDemandData,
+      totalCandidates: jobDemandData.workers.length 
+    });
   } catch (error) {
+    console.error("Fetch Detail Error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }
 };
 
 /**
- * @desc    Create new Job Demand + Notify
- * @route   POST /api/v1/demands
+ * @desc    Create new Job Demand
+ * @route   POST /api/job-demands
  */
 exports.createJobDemand = async (req, res) => {
   try {
@@ -61,13 +121,13 @@ exports.createJobDemand = async (req, res) => {
     const userId = req.user._id || req.user.userId;
     const { companyId } = req.user;
 
-    // 1. Validate Employer
     const employer = await Employer.findOne({ employerName, companyId });
     if (!employer) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "Employer not found in your company records" });
+      return res.status(StatusCodes.NOT_FOUND).json({ 
+        error: "Employer not found in your company records" 
+      });
     }
 
-    // 2. Prevent Spam (5-second debounce)
     const isDuplicate = await JobDemand.findOne({
       createdBy: userId,
       jobTitle: otherData.jobTitle,
@@ -75,18 +135,19 @@ exports.createJobDemand = async (req, res) => {
     });
 
     if (isDuplicate) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ error: "Duplicate demand detected. Please wait." });
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        error: "Duplicate demand detected. Please wait a moment." 
+      });
     }
 
-    // 3. Save to DB
     const jobDemand = await JobDemand.create({
       ...otherData,
       employerId: employer._id,
       createdBy: userId,
-      companyId: companyId
+      companyId: companyId,
+      workers: [] 
     });
 
-    // 4. Trigger Activity Log (Object-based syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -101,8 +162,8 @@ exports.createJobDemand = async (req, res) => {
 };
 
 /**
- * @desc    Update Job Demand + Notify
- * @route   PATCH /api/v1/demands/:id
+ * @desc    Update Job Demand
+ * @route   PATCH /api/job-demands/:id
  */
 exports.updateJobDemand = async (req, res) => {
   try {
@@ -111,7 +172,6 @@ exports.updateJobDemand = async (req, res) => {
     const { companyId, role } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // Security check
     let filter = { _id: id, companyId };
     if (role !== 'admin' && role !== 'tenant_admin') {
       filter.createdBy = userId;
@@ -125,7 +185,7 @@ exports.updateJobDemand = async (req, res) => {
     const jobDemand = await JobDemand.findOneAndUpdate(filter, updateData, {
       new: true,
       runValidators: true
-    });
+    }).populate('workers', 'name status');
 
     if (!jobDemand) {
       return res.status(StatusCodes.FORBIDDEN).json({
@@ -134,7 +194,6 @@ exports.updateJobDemand = async (req, res) => {
       });
     }
 
-    // Trigger Activity Log (Object-based syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -149,8 +208,8 @@ exports.updateJobDemand = async (req, res) => {
 };
 
 /**
- * @desc    Delete Job Demand + Notify
- * @route   DELETE /api/v1/demands/:id
+ * @desc    Delete Job Demand
+ * @route   DELETE /api/job-demands/:id
  */
 exports.deleteJobDemand = async (req, res) => {
   try {
@@ -163,7 +222,7 @@ exports.deleteJobDemand = async (req, res) => {
       filter.createdBy = userId;
     }
 
-    const demandToDelete = await JobDemand.findOne(filter).populate('employerId', 'employerName');
+    const demandToDelete = await JobDemand.findOne(filter);
 
     if (!demandToDelete) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -173,16 +232,12 @@ exports.deleteJobDemand = async (req, res) => {
     }
 
     const title = demandToDelete.jobTitle;
-    const emp = demandToDelete.employerId?.employerName || "Employer";
-
     await demandToDelete.deleteOne();
 
-    // Trigger Activity Log (Object-based syntax)
     await createNotification({
-      companyId,
-      createdBy: userId,
+      companyId, createdBy: userId,
       category: 'demand',
-      content: `removed the job demand: ${title} (${emp})`
+      content: `removed the job demand: ${title}`
     });
 
     res.status(StatusCodes.OK).json({ success: true, message: "Demand successfully deleted" });
@@ -193,6 +248,7 @@ exports.deleteJobDemand = async (req, res) => {
 
 /**
  * @desc    Get Employer Specific Demands
+ * @route   GET /api/job-demands/employer/:employerId
  */
 exports.getEmployerJobDemands = async (req, res) => {
   try {

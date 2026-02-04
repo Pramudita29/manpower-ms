@@ -20,6 +20,7 @@ const JobDemandSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please specify the contract tenure (e.g., 2 Years)'],
   },
+  // This is the array that stores our "Assigned Candidates"
   workers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker',
@@ -65,6 +66,11 @@ const JobDemandSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+// VIRTUAL: Get count of assigned workers automatically
+JobDemandSchema.virtual('assignedCount').get(function() {
+  return this.workers ? this.workers.length : 0;
 });
 
 module.exports = mongoose.model('JobDemand', JobDemandSchema);
