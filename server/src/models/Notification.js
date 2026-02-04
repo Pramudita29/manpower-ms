@@ -4,7 +4,8 @@ const NotificationSchema = new mongoose.Schema({
     companyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Company',
-        required: true
+        required: true,
+        index: true // Optimized for company-wide lookups
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -13,22 +14,36 @@ const NotificationSchema = new mongoose.Schema({
     },
     category: {
         type: String,
+        // Aligned with your frontend filter buttons: 
+        // ['Worker', 'Demand', 'Agent', 'Employer', 'System']
         enum: ['employer', 'demand', 'worker', 'agent', 'system'],
-        default: 'system'
+        default: 'system',
+        lowercase: true,
+        trim: true
     },
     content: {
         type: String,
-        required: true
+        required: [true, 'Notification content is required'],
+        trim: true
     },
     isReadBy: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        index: true // Faster queries for "unread" counts
     }],
     createdAt: {
         type: Date,
         default: Date.now,
-        expires: 2592000 // Automatically deletes after 30 days (in seconds)
+        index: true,
+        expires: 2592000 // 30-day auto-cleanup
     }
+}, { 
+    timestamps: true, // Adds updatedAt and ensures createdAt is handled by Mongoose
+    toJSON: { virtuals: true }, 
+    toObject: { virtuals: true } 
 });
+
+// Compound index to speed up the "Get Unread for User" query
+NotificationSchema.index({ companyId: 1, isReadBy: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);

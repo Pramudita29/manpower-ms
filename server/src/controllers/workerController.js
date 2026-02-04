@@ -28,6 +28,15 @@ const sanitizeSparseFields = (data) => {
 };
 
 /**
+ * HELPER: Format Stage ID to Readable Name
+ */
+const formatStageName = (stageId) => {
+  return stageId.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+};
+
+/**
  * @desc Get all Workers
  */
 exports.getAllWorkers = async (req, res) => {
@@ -103,11 +112,10 @@ exports.addWorker = async (req, res) => {
     const { jobDemandId, name } = req.body;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
+    const io = req.app.get('socketio');
 
-    // SANITIZE: Convert empty strings to undefined for Sparse Index
     const sanitizedData = sanitizeSparseFields({ ...req.body });
 
-    // Explicit Duplicate Checks for better Error Messages
     if (sanitizedData.passportNumber) {
       const existing = await Worker.findOne({ passportNumber: sanitizedData.passportNumber, companyId });
       if (existing) return res.status(400).json({ msg: 'Passport number already exists' });
@@ -160,7 +168,7 @@ exports.addWorker = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `registered a new worker: ${name}`
-    });
+    }, io);
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
   } catch (error) {
@@ -176,11 +184,11 @@ exports.updateWorker = async (req, res) => {
     const { id } = req.params;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
+    const io = req.app.get('socketio');
 
     const oldWorker = await Worker.findOne({ _id: id, companyId });
     if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    // SANITIZE: Convert empty strings to undefined for Sparse Index
     const sanitizedData = sanitizeSparseFields({ ...req.body });
     const { existingDocuments, ...otherUpdates } = sanitizedData;
 
@@ -212,7 +220,7 @@ exports.updateWorker = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `updated details for worker: ${updatedWorker.name}`
-    });
+    }, io);
 
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {
@@ -225,20 +233,29 @@ exports.updateWorker = async (req, res) => {
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
-    const { id, stageId } = req.params;
+    const { id, stageId } = req.params; // stageId here is likely "65b82..." (the _id of the stage object)
     const { status } = req.body; 
     const userId = req.user._id || req.user.userId || req.user.id;
     const companyId = req.user.companyId;
+    const io = req.app.get('socketio');
 
     const worker = await Worker.findOne({ _id: id, companyId });
     if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    let stage = worker.stageTimeline.find(s => s.stage === stageId || (s._id && s._id.toString() === stageId));
-    if (stage) {
-      stage.status = status;
-      stage.date = new Date();
+    // 1. Find the specific stage entry using either the stage name OR the _id
+    let stageEntry = worker.stageTimeline.find(s => 
+      s.stage === stageId || (s._id && s._id.toString() === stageId)
+    );
+
+    if (!stageEntry) {
+      return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Stage entry not found' });
     }
 
+    // 2. Update the status and date for that entry
+    stageEntry.status = status;
+    stageEntry.date = new Date();
+
+    // 3. Update global worker status logic
     if (status === 'rejected') {
       worker.status = 'rejected';
     } else {
@@ -252,14 +269,26 @@ exports.updateWorkerStage = async (req, res) => {
       }
     }
 
+    // 4. Update the 'currentStage' field in the main worker document to keep it in sync
+    worker.currentStage = stageEntry.stage;
+
     await worker.save();
 
+    // 5. FORMAT THE NAME: Get the string 'medical-examination' from the database object
+    // and turn it into 'Medical Examination'
+    const stageKey = stageEntry.stage || "Unknown Stage";
+    const readableStage = stageKey
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+    // 6. TRIGGER NOTIFICATION (Fine as fak)
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
-      content: `updated ${worker.name}'s stage [${stageId.replace(/-/g, ' ')}] to ${status}`
-    });
+      content: `updated ${worker.name}'s stage [${readableStage}] to ${status}`
+    }, io);
 
     res.status(200).json({ success: true, data: worker });
   } catch (error) {
@@ -274,6 +303,7 @@ exports.deleteWorker = async (req, res) => {
   try {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
+    const io = req.app.get('socketio');
 
     const worker = await Worker.findOne({ _id: req.params.id, companyId });
     
@@ -298,7 +328,7 @@ exports.deleteWorker = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `deleted worker: ${workerName}`
-    });
+    }, io);
 
     res.status(200).json({ success: true, msg: 'Worker deleted successfully' });
   } catch (error) {

@@ -185,7 +185,7 @@ export function WorkerManagementPage({
                       <TableCell>
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
                           <Briefcase size={14} className="text-slate-300" />
-                          {worker.employerId?.employerName || worker.employerId?.name || <span className="text-slate-300 italic">Unassigned</span>}
+                          {worker.employerId?.employerName || worker.employerId?.name || <span className="text-slate-300 italic">Deployed</span>}
                         </div>
                       </TableCell>
 

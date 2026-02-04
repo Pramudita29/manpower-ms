@@ -1,8 +1,24 @@
-const Notification = require('../models/Notification');
+const Notification = require('../models/Notification'); 
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 
-// Helper to create and emit notification via Socket
+// Internal Helper for category consistency - ensures frontend filters match
+const mapCategoryToUI = (cat) => {
+    const map = {
+        'general': 'System',
+        'employer': 'Employer',
+        'worker': 'Worker',
+        'job-demand': 'Demand',
+        'sub-agent': 'Agent',
+        'system': 'System'
+    };
+    return map[cat?.toLowerCase()] || 'System';
+};
+
+/**
+ * Helper to create and emit notification via Socket
+ * IMPORTANT: The 'content' string should contain names, not IDs.
+ */
 const createNotification = async ({ companyId, createdBy, category, content } = {}, io) => {
     try {
         if (!companyId || !createdBy || !content) {
@@ -13,14 +29,21 @@ const createNotification = async ({ companyId, createdBy, category, content } = 
         const notification = await Notification.create({
             companyId,
             createdBy,
-            category,
-            content
+            category: category?.toLowerCase() || 'general',
+            content: content.trim()
         });
 
-        // If io is provided, emit to the company room
         if (io) {
+            // Populate the user who triggered the action so the UI shows their name
             const populatedNotif = await notification.populate('createdBy', 'fullName');
-            io.to(String(companyId)).emit('newNotification', populatedNotif);
+            
+            const uiNotif = {
+                ...populatedNotif.toObject(),
+                isRead: false,
+                category: mapCategoryToUI(populatedNotif.category) 
+            };
+            
+            io.to(String(companyId)).emit('newNotification', uiNotif);
         }
 
         return notification;
@@ -32,7 +55,7 @@ const createNotification = async ({ companyId, createdBy, category, content } = 
 const getNotifications = async (req, res) => {
     try {
         const companyId = req.user.companyId;
-        const userId = String(req.user?._id || req.user?.id);
+        const userId = String(req.user?._id || req.user?.userId || req.user?.id);
 
         const notifications = await Notification.find({ companyId })
             .populate('createdBy', 'fullName')
@@ -42,19 +65,19 @@ const getNotifications = async (req, res) => {
 
         const updatedNotifications = notifications.map(notif => ({
             ...notif,
-            // Ensure this logic is solid:
+            category: mapCategoryToUI(notif.category),
+            // Boolean helper so frontend doesn't have to calculate isReadBy.includes()
             isRead: notif.isReadBy ? notif.isReadBy.map(id => String(id)).includes(userId) : false
         }));
 
-        res.status(200).json({ success: true, data: updatedNotifications });
+        res.status(StatusCodes.OK).json({ success: true, data: updatedNotifications });
     } catch (error) {
-        res.status(500).json({ success: false });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
     }
 };
 
 const markAllAsRead = async (req, res) => {
     try {
-        // Handle both possible locations for User ID from your middleware
         const userId = req.user?._id || req.user?.userId || req.user?.id;
         const companyId = req.user?.companyId;
 
@@ -62,18 +85,10 @@ const markAllAsRead = async (req, res) => {
             return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, message: "User ID not found" });
         }
 
-        // IMPORTANT: Ensure companyId is cast to ObjectId if it's a string
-        const filter = {
-            isReadBy: { $ne: userId }
-        };
-
-        if (companyId) {
-            filter.companyId = new mongoose.Types.ObjectId(companyId);
-        }
-
-        const result = await Notification.updateMany(filter, {
-            $addToSet: { isReadBy: userId }
-        });
+        const result = await Notification.updateMany(
+            { companyId, isReadBy: { $ne: userId } },
+            { $addToSet: { isReadBy: userId } }
+        );
 
         return res.status(StatusCodes.OK).json({
             success: true,
@@ -81,7 +96,6 @@ const markAllAsRead = async (req, res) => {
             modifiedCount: result.modifiedCount
         });
     } catch (error) {
-        console.error("markAllAsRead error:", error);
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: "Failed to mark notifications as read",
@@ -93,8 +107,6 @@ const markAllAsRead = async (req, res) => {
 const getWeeklySummary = async (req, res) => {
     try {
         const { companyId } = req.user;
-        if (!companyId) throw new Error("Company ID required");
-
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 

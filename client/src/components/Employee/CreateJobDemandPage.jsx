@@ -120,7 +120,7 @@ export function CreateJobDemandPage({ employers = [], onNavigate, onSave, initia
               <Input label="Contract Tenure" placeholder="e.g. 2 Years" value={formData.tenure} onChange={(e) => handleChange('tenure', e.target.value)} required />
             </div>
             <Textarea label="Job Description" rows={3} value={formData.description} onChange={(e) => handleChange('description', e.target.value)} required />
-            <Input label="Required Skills (Comma separated)" value={formData.skills} onChange={(e) => handleChange('skills', e.target.value)} required />
+            <Input label="Required Skills (Comma separated)" value={formData.skills} onChange={(e) => handleChange('skills', e.target.value)}  />
             <Input label="Submission Deadline" type="date" value={formData.deadline} onChange={(e) => handleChange('deadline', e.target.value)} required />
           </CardContent>
         </Card>

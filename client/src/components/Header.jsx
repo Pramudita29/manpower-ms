@@ -17,7 +17,6 @@ export function Header({
 
     // 1. IMPROVED USER DATA MAPPING
     const userData = useMemo(() => {
-        // Look for fullName specifically, then fallbacks
         const name = user?.fullName || user?.data?.fullName || user?.name || "User";
         const role = user?.role || user?.data?.role || "Employee";
 
@@ -29,17 +28,15 @@ export function Header({
         };
     }, [user]);
 
-    // 2. SIMPLIFIED UNREAD LOGIC
+    // 2. FILTER UNREAD NOTIFICATIONS
     const unreadNotifications = useMemo(() => {
         const list = Array.isArray(notifications) ? notifications : [];
         return list
-            .filter((n) => {
-                // We strictly use the 'isRead' flag calculated by our updated backend
-                return n.isRead === false;
-            })
+            .filter((n) => n.isRead === false) // Uses the boolean we inject in the controller
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }, [notifications]);
 
+    // Handle clicking outside to close
     useEffect(() => {
         const handleClick = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -62,8 +59,8 @@ export function Header({
         try {
             if (typeof onMarkAllRead === 'function') {
                 await onMarkAllRead();
-                // Close dropdown only after success
-                setIsNotifOpen(false);
+                // We keep the dropdown open or closed based on your preference
+                // Usually better to stay open so they see the "You're all caught up!" state
             }
         } catch (err) {
             console.error("Header: Failed to mark as read", err);
@@ -97,7 +94,6 @@ export function Header({
 
                 {/* Right: Actions & Profile */}
                 <div className="flex items-center gap-4 md:gap-6">
-
                     {/* Notification Dropdown */}
                     <div className="relative" ref={dropdownRef}>
                         <button
@@ -131,12 +127,18 @@ export function Header({
                                     {unreadNotifications.length > 0 ? (
                                         unreadNotifications.map((item) => (
                                             <div key={item._id || item.id} className="p-4 hover:bg-slate-50/50 transition-colors cursor-default">
-                                                <p className="text-sm text-slate-700 leading-relaxed">
-                                                    <span className="font-bold text-slate-900">
-                                                        {item.createdBy?.fullName || 'System'}
-                                                    </span>{' '}
-                                                    {item.content}
-                                                </p>
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <p className="text-sm text-slate-700 leading-relaxed">
+                                                        <span className="font-bold text-slate-900">
+                                                            {item.createdBy?.fullName || 'System'}
+                                                        </span>{' '}
+                                                        {item.content}
+                                                    </p>
+                                                    {/* Category Badge */}
+                                                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-bold uppercase">
+                                                        {item.category}
+                                                    </span>
+                                                </div>
                                                 <span className="text-[11px] text-slate-400 mt-2 block font-medium">
                                                     {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(item.createdAt).toLocaleDateString()}
                                                 </span>
@@ -144,6 +146,9 @@ export function Header({
                                         ))
                                     ) : (
                                         <div className="p-10 text-center">
+                                            <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <CheckCheck className="text-slate-300" size={24} />
+                                            </div>
                                             <p className="text-slate-400 text-sm italic">You're all caught up!</p>
                                         </div>
                                     )}
@@ -168,7 +173,7 @@ export function Header({
                                 {userData.fullName}
                             </p>
                             <p className="text-[10px] text-indigo-600 font-bold mt-1 uppercase tracking-tighter">
-                                {userData.role.replace('_', ' ')}
+                                {userData.role.replace(/_/g, ' ')}
                             </p>
                         </div>
                         <div className="group relative">
@@ -178,7 +183,7 @@ export function Header({
                             {onLogout && (
                                 <button
                                     onClick={onLogout}
-                                    className="absolute -bottom-1 -right-1 p-1 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-red-500 shadow-sm"
+                                    className="absolute -bottom-1 -right-1 p-1 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"
                                     title="Logout"
                                 >
                                     <LogOut size={12} />
