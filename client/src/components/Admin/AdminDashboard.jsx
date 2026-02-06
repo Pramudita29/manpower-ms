@@ -28,6 +28,7 @@ import { Card, CardContent } from '../ui/Card';
 import { AddEmployeeForm } from './AddEmployeeForm';
 
 const API_BASE = 'http://localhost:5000/api/dashboard';
+const WORKER_API = 'http://localhost:5000/api/workers'; // adjust if your route is different
 const FILE_BASE = 'http://localhost:5000';
 const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
 
@@ -87,6 +88,13 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     workersInProcess: 0,
     activeSubAgents: 0,
     totalEmployees: 0
+  });
+
+  const [workerStats, setWorkerStats] = useState({
+    pending: 0,
+    processing: 0,
+    deployed: 0,
+    rejected: 0 // optional – you can show it or not
   });
 
   const [allData, setAllData] = useState([]);
@@ -171,28 +179,22 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       case 'staff':
         onNavigate(`/employees?id=${id}`);
         break;
-
       case 'employer':
         onNavigate(`/employers?id=${id}`);
         break;
-
       case 'worker':
         onNavigate(`/workers?id=${id}`);
         break;
-
       case 'job-demand':
         onNavigate(`/job-demand?id=${id}`);
         break;
-
       case 'sub-agent':
         onNavigate(`/sub-agents?id=${id}`);
         break;
-
       case 'note':
       case 'reminder':
         toast.success(`Selected ${item.type}: ${item.content?.substring(0, 40) || 'Note'}...`);
         break;
-
       default:
         toast.error(`Unknown entity type: ${item.type}`);
         break;
@@ -228,8 +230,23 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     }
   }, []);
 
+  const fetchWorkerStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${WORKER_API}/stats/status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setWorkerStats(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch worker status stats', err);
+    }
+  };
+
   useEffect(() => {
     fetchAdminData();
+    fetchWorkerStats();
     const timer = setInterval(() => setCurrentTime(getNepalTime()), 1000);
     return () => clearInterval(timer);
   }, [fetchAdminData]);
@@ -367,6 +384,12 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       String(linkedId) === String(selectedEmployeeFilter);
   });
 
+  const workerChartData = [
+    { name: 'Pending', count: workerStats.pending },
+    { name: 'Processing', count: workerStats.processing },
+    { name: 'Deployed', count: workerStats.deployed },
+  ];
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -479,7 +502,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 </div>
                 <div className="divide-y divide-slate-100">
                   {searchResults.map((item) => {
-                    // Custom subtitle per entity type
                     let subtitle = '';
                     switch (item.type) {
                       case 'worker':
@@ -506,7 +528,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                         subtitle = item.subtitle || item.country || item.category || item.status || '—';
                     }
 
-                    // Custom icon per type
                     let iconComponent;
                     switch (item.type) {
                       case 'employee':
@@ -610,31 +631,31 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         />
       </div>
 
-      {/* Charts */}
+      {/* Charts – ONLY first chart changed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-4">
         <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
           <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-indigo-600" /> System Growth
+            <div className="w-2 h-2 rounded-full bg-indigo-600" /> Worker Pipeline
           </h3>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={workerChartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={4} fill="url(#colorCount)" />
-              </AreaChart>
+                <Tooltip cursor={{ fill: '#f8fafc' }} />
+                <ReBar 
+                  dataKey="count" 
+                  fill="#4f46e5" 
+                  radius={[10, 10, 0, 0]} 
+                  barSize={60} 
+                />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
+        {/* This chart is unchanged from your original code */}
         <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
           <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-slate-900" /> Entity Distribution
@@ -825,131 +846,129 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           </div>
         </div>
 
-      {/* Right - Operational Logs */}
-      <div className="lg:col-span-7 space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-xl font-black flex items-center gap-3">
-            <FileText size={24} className="text-indigo-600" /> Operational Logs
-          </h2>
+        {/* Right - Operational Logs */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-black flex items-center gap-3">
+              <FileText size={24} className="text-indigo-600" /> Operational Logs
+            </h2>
 
-          <select
-            className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm outline-none focus:border-indigo-500"
-            value={selectedEmployeeFilter}
-            onChange={e => setSelectedEmployeeFilter(e.target.value)}
-          >
-            <option value="all">Show Everyone</option>
-            <optgroup label="Staff Members">
-              {employees.map(emp => (
-                <option key={emp._id} value={emp._id}>
-                  {String(emp._id).trim() === String(currentUserId).trim()
-                    ? "My Notes (Me)"
-                    : emp.fullName}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
+            <select
+              className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm outline-none focus:border-indigo-500"
+              value={selectedEmployeeFilter}
+              onChange={e => setSelectedEmployeeFilter(e.target.value)}
+            >
+              <option value="all">Show Everyone</option>
+              <optgroup label="Staff Members">
+                {employees.map(emp => (
+                  <option key={emp._id} value={emp._id}>
+                    {String(emp._id).trim() === String(currentUserId).trim()
+                      ? "My Notes (Me)"
+                      : emp.fullName}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[850px] overflow-y-auto pr-2 custom-scrollbar">
-          {filteredNotes.map(note => {
-            const creatorId = note.createdBy?._id || note.createdBy;
-            const isOwnNote = String(creatorId).trim() === String(currentUserId).trim();
-            
-            // AD/BS Conversion Logic
-            const adDate = new Date(note.createdAt);
-            const bsDate = convertADtoBS(note.createdAt);
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[850px] overflow-y-auto pr-2 custom-scrollbar">
+            {filteredNotes.map(note => {
+              const creatorId = note.createdBy?._id || note.createdBy;
+              const isOwnNote = String(creatorId).trim() === String(currentUserId).trim();
+              
+              const adDate = new Date(note.createdAt);
+              const bsDate = convertADtoBS(note.createdAt);
 
-            return (
-              <div
-                key={note._id}
-                className={`p-6 rounded-3xl border-2 transition-all ${isOwnNote
-                  ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
-                  : 'bg-white border-slate-100 shadow-sm'
-                  }`}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <Badge
-                    className={`${note.category === 'urgent'
-                      ? 'bg-red-100 text-red-600'
-                      : 'bg-slate-100 text-slate-600'
-                      } border-none text-[10px] font-black uppercase px-3 py-1`}
-                  >
-                    {note.category}
-                  </Badge>
-
-                  {note.attachment && (
-                    <a
-                      href={`${FILE_BASE}${note.attachment}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+              return (
+                <div
+                  key={note._id}
+                  className={`p-6 rounded-3xl border-2 transition-all ${isOwnNote
+                    ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
+                    : 'bg-white border-slate-100 shadow-sm'
+                    }`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <Badge
+                      className={`${note.category === 'urgent'
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-slate-100 text-slate-600'
+                        } border-none text-[10px] font-black uppercase px-3 py-1`}
                     >
-                      <Paperclip size={16} />
-                    </a>
-                  )}
-                </div>
+                      {note.category}
+                    </Badge>
 
-                <p className="text-md text-slate-800 font-medium leading-relaxed mb-5">
-                  {note.content}
-                </p>
-
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className={`w-2.5 h-2.5 rounded-full ${isOwnNote ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                  <span
-                    className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'}`}
-                  >
-                    BY {isOwnNote ? "ME" : (note.createdBy?.fullName || 'Unknown')}
-                  </span>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                  <div className="flex gap-5">
-                    {isOwnNote && (
-                      <>
-                        <button
-                          onClick={() => handleEdit(note)}
-                          className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors"
-                        >
-                          <Edit size={15} /> Edit
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(note._id)}
-                          className="flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-semibold text-sm transition-colors"
-                        >
-                          <Trash2 size={15} /> Delete
-                        </button>
-                      </>
+                    {note.attachment && (
+                      <a
+                        href={`${FILE_BASE}${note.attachment}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                      >
+                        <Paperclip size={16} />
+                      </a>
                     )}
                   </div>
 
-                  {/* Toggleable Date Display */}
-                  <span className="text-xs text-slate-400 font-black">
-                    {isBS 
-                      ? `${bsDate.day} ${bsDate.month}` 
-                      : adDate.toLocaleDateString('en-GB')
-                    }
-                  </span>
+                  <p className="text-md text-slate-800 font-medium leading-relaxed mb-5">
+                    {note.content}
+                  </p>
+
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className={`w-2.5 h-2.5 rounded-full ${isOwnNote ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'}`}
+                    >
+                      BY {isOwnNote ? "ME" : (note.createdBy?.fullName || 'Unknown')}
+                    </span>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <div className="flex gap-5">
+                      {isOwnNote && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(note)}
+                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors"
+                          >
+                            <Edit size={15} /> Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(note._id)}
+                            className="flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-semibold text-sm transition-colors"
+                          >
+                            <Trash2 size={15} /> Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <span className="text-xs text-slate-400 font-black">
+                      {isBS 
+                        ? `${bsDate.day} ${bsDate.month}` 
+                        : adDate.toLocaleDateString('en-GB')
+                      }
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
 
-    <style jsx global>{`
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-    `}</style>
-  </div>
-);
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+      `}</style>
+    </div>
+  );
 }

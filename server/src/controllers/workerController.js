@@ -28,15 +28,6 @@ const sanitizeSparseFields = (data) => {
 };
 
 /**
- * HELPER: Format Stage ID to Readable Name
- */
-const formatStageName = (stageId) => {
-  return stageId.split('-').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1)
-  ).join(' ');
-};
-
-/**
  * @desc Get all Workers
  */
 exports.getAllWorkers = async (req, res) => {
@@ -119,10 +110,6 @@ exports.addWorker = async (req, res) => {
     if (sanitizedData.passportNumber) {
       const existing = await Worker.findOne({ passportNumber: sanitizedData.passportNumber, companyId });
       if (existing) return res.status(400).json({ msg: 'Passport number already exists' });
-    }
-    if (sanitizedData.citizenshipNumber) {
-      const existing = await Worker.findOne({ citizenshipNumber: sanitizedData.citizenshipNumber, companyId });
-      if (existing) return res.status(400).json({ msg: 'Citizenship number already exists' });
     }
 
     let initialDocs = [];
@@ -233,7 +220,7 @@ exports.updateWorker = async (req, res) => {
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
-    const { id, stageId } = req.params; // stageId here is likely "65b82..." (the _id of the stage object)
+    const { id, stageId } = req.params;
     const { status } = req.body; 
     const userId = req.user._id || req.user.userId || req.user.id;
     const companyId = req.user.companyId;
@@ -242,7 +229,6 @@ exports.updateWorkerStage = async (req, res) => {
     const worker = await Worker.findOne({ _id: id, companyId });
     if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    // 1. Find the specific stage entry using either the stage name OR the _id
     let stageEntry = worker.stageTimeline.find(s => 
       s.stage === stageId || (s._id && s._id.toString() === stageId)
     );
@@ -251,11 +237,9 @@ exports.updateWorkerStage = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Stage entry not found' });
     }
 
-    // 2. Update the status and date for that entry
     stageEntry.status = status;
     stageEntry.date = new Date();
 
-    // 3. Update global worker status logic
     if (status === 'rejected') {
       worker.status = 'rejected';
     } else {
@@ -269,20 +253,15 @@ exports.updateWorkerStage = async (req, res) => {
       }
     }
 
-    // 4. Update the 'currentStage' field in the main worker document to keep it in sync
     worker.currentStage = stageEntry.stage;
-
     await worker.save();
 
-    // 5. FORMAT THE NAME: Get the string 'medical-examination' from the database object
-    // and turn it into 'Medical Examination'
     const stageKey = stageEntry.stage || "Unknown Stage";
     const readableStage = stageKey
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
 
-    // 6. TRIGGER NOTIFICATION (Fine as fak)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -333,5 +312,83 @@ exports.deleteWorker = async (req, res) => {
     res.status(200).json({ success: true, msg: 'Worker deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Get Deployment Stats for Graph (Aggregated by Month)
+ */
+exports.getDeploymentStats = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+
+    const stats = await Worker.aggregate([
+      {
+        $match: {
+          companyId: new mongoose.Types.ObjectId(companyId),
+          // We only care about workers whose status is 'deployed'
+          status: 'deployed'
+        }
+      },
+      // Unwind timeline to access the specific 'deployed' stage date
+      { $unwind: "$stageTimeline" },
+      { 
+        $match: { 
+          "stageTimeline.stage": "deployed", 
+          "stageTimeline.status": "completed" 
+        } 
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$stageTimeline.date" },
+            month: { $month: "$stageTimeline.date" }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } }
+    ]);
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const formattedData = stats.map(item => ({
+      name: monthNames[item._id.month - 1],
+      total: item.count
+    }));
+
+    res.status(StatusCodes.OK).json({ success: true, data: formattedData });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Get Worker Status Stats (Counts of pending, processing, deployed, rejected)
+ */
+exports.getWorkerStatusStats = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+
+    const stats = await Worker.aggregate([
+      { $match: { companyId: new mongoose.Types.ObjectId(companyId) } },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const statusMap = { pending: 0, processing: 0, deployed: 0, rejected: 0 };
+    stats.forEach(item => {
+      if (statusMap.hasOwnProperty(item._id)) {
+        statusMap[item._id] = item.count;
+      }
+    });
+
+    res.status(StatusCodes.OK).json({ success: true, data: statusMap });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
