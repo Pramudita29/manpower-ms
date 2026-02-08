@@ -7,7 +7,8 @@ import {
   Info,
   ShieldCheck,
   Upload,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/Button";
@@ -30,7 +31,7 @@ export function AddWorkerPage({
     email: "",
     dob: "",
     passportNumber: "",
-    citizenshipNumber: "", // Added citizenshipNumber field
+    citizenshipNumber: "",
     contact: "",
     address: "",
     country: "Nepal",
@@ -72,7 +73,7 @@ export function AddWorkerPage({
         email: initialData.email || "",
         dob: initialData.dob ? new Date(initialData.dob).toISOString().split('T')[0] : "",
         passportNumber: initialData.passportNumber || "",
-        citizenshipNumber: initialData.citizenshipNumber || "", // Populate citizenshipNumber
+        citizenshipNumber: initialData.citizenshipNumber || "",
         contact: initialData.contact || "",
         address: initialData.address || "",
         country: initialData.country || "Nepal",
@@ -96,11 +97,39 @@ export function AddWorkerPage({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const filteredJobDemands = jobDemands.filter(jd => {
-    if (!formData.employerId) return false;
-    const jdEmpId = jd.employerId?._id || jd.employerId;
-    return String(jdEmpId) === String(formData.employerId);
-  });
+  // --- UPDATED LOGIC: Specific Lock Reasons ---
+  const filteredJobDemands = jobDemands
+    .filter(jd => {
+      if (!formData.employerId) return false;
+      const jdEmpId = jd.employerId?._id || jd.employerId;
+      return String(jdEmpId) === String(formData.employerId);
+    })
+    .map(jd => {
+      const currentCount = jd.workers?.length || 0;
+      const requiredCount = jd.requiredWorkers || 0;
+      
+      const isFull = currentCount >= requiredCount && requiredCount > 0;
+      const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
+      const isStatusClosed = jd.status?.toLowerCase() === "closed";
+      
+      const isAssignedToCurrentWorker = isEditMode && (String(initialData?.jobDemandId?._id || initialData?.jobDemandId) === String(jd._id));
+
+      let lockReason = "";
+      if (!isAssignedToCurrentWorker) {
+        // Priority: Deadline > Fulfillment > Manual Status
+        if (isExpired) lockReason = "PAST DEADLINE";
+        else if (isFull) lockReason = "DEMAND FULL";
+        else if (isStatusClosed) lockReason = "CLOSED";
+      }
+
+      return {
+        ...jd,
+        currentCount,
+        requiredCount,
+        isLocked: !!lockReason,
+        lockReason
+      };
+    });
 
   const handleAddDocument = () => {
     if (currentDoc.file && currentDoc.name) {
@@ -125,6 +154,14 @@ export function AddWorkerPage({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (formData.jobDemandId) {
+      const selectedJd = filteredJobDemands.find(jd => (jd._id || jd.id) === formData.jobDemandId);
+      if (selectedJd?.isLocked) {
+        alert(`Cannot register worker. This Job Demand is ${selectedJd.lockReason}.`);
+        return;
+      }
+    }
     
     const sanitizedData = { ...formData };
     const idFields = ["employerId", "jobDemandId", "subAgentId"];
@@ -156,7 +193,6 @@ export function AddWorkerPage({
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* PERSONAL INFO */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
             <CardHeader className="bg-gray-50/50 border-b py-3">
               <CardTitle className="text-md font-bold">Personal Information</CardTitle>
@@ -170,15 +206,13 @@ export function AddWorkerPage({
               </div>
               <Input label="Contact Number *" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
               <Input label="Address *" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
-              {/* New Citizenship Number Field */}
               <Input label="Citizenship Number" value={formData.citizenshipNumber} onChange={(e) => handleChange("citizenshipNumber", e.target.value)} />
             </CardContent>
           </Card>
 
-          {/* DEPLOYMENT INFO - ALL OPTIONAL */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
             <CardHeader className="bg-gray-50/50 border-b py-3">
-              <CardTitle className="text-md font-bold">Deployment Details (Optional)</CardTitle>
+              <CardTitle className="text-md font-bold">Deployment Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <Select
@@ -197,10 +231,20 @@ export function AddWorkerPage({
                 label="Job Demand"
                 value={formData.jobDemandId || ""}
                 disabled={!formData.employerId}
-                onChange={(e) => handleChange("jobDemandId", e.target.value)}
+                onChange={(e) => {
+                  const selected = filteredJobDemands.find(jd => (jd._id || jd.id) === e.target.value);
+                  if (selected?.isLocked) {
+                    alert(`Action Blocked: This demand is ${selected.lockReason}.`);
+                    return;
+                  }
+                  handleChange("jobDemandId", e.target.value);
+                }}
                 options={[
                     { value: "", label: "None / Select Job Demand" },
-                    ...filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))
+                    ...filteredJobDemands.map(jd => ({ 
+                      value: jd._id || jd.id, 
+                      label: `${jd.jobTitle} ${jd.isLocked ? `(${jd.lockReason})` : `(${jd.currentCount}/${jd.requiredCount})`}` 
+                    }))
                 ]}
               />
               <Select
@@ -226,7 +270,6 @@ export function AddWorkerPage({
           </Card>
         </div>
 
-        {/* DOCUMENTS SECTION */}
         <Card className="border-none shadow-sm ring-1 ring-gray-200 overflow-hidden">
           <CardHeader className="bg-slate-900 text-white">
             <div className="flex items-center gap-2">
