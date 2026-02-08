@@ -6,7 +6,29 @@ const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 
 /**
- * HELPER: Mask Sensitive Information (Passport/Citizenship) for Privacy
+ * HELPER: Sync Job Demand Status
+ * Automatically closes or opens a Job Demand based on worker count vs quota
+ */
+const syncJobDemandStatus = async (jobDemandId) => {
+  if (!jobDemandId || !mongoose.Types.ObjectId.isValid(jobDemandId)) return;
+
+  const demand = await JobDemand.findById(jobDemandId);
+  if (!demand) return;
+
+  const currentCount = demand.workers.length;
+  const requiredCount = demand.requiredWorkers || 0;
+
+  // Determine if it should be closed or open
+  const newStatus = currentCount >= requiredCount ? 'closed' : 'open';
+
+  if (demand.status !== newStatus) {
+    demand.status = newStatus;
+    await demand.save();
+  }
+};
+
+/**
+ * HELPER: Mask Sensitive Information
  */
 const maskSensitiveInfo = (value) => {
   if (!value || value === "") return "N/A";
@@ -15,7 +37,6 @@ const maskSensitiveInfo = (value) => {
 
 /**
  * HELPER: Clean Sparse Fields
- * Converts empty strings to undefined so MongoDB Sparse Index ignores them
  */
 const sanitizeSparseFields = (data) => {
   const fields = ['passportNumber', 'citizenshipNumber'];
@@ -112,6 +133,14 @@ exports.addWorker = async (req, res) => {
       if (existing) return res.status(400).json({ msg: 'Passport number already exists' });
     }
 
+    // Check if Job Demand is already full
+    if (jobDemandId && mongoose.Types.ObjectId.isValid(jobDemandId)) {
+      const demand = await JobDemand.findById(jobDemandId);
+      if (demand && demand.status === 'closed') {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'This job demand is already full and closed.' });
+      }
+    }
+
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
       initialDocs = req.files.map((file, index) => {
@@ -148,6 +177,8 @@ exports.addWorker = async (req, res) => {
 
     if (jobDemandId && mongoose.Types.ObjectId.isValid(jobDemandId)) {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
+      // SYNC STATUS AFTER ADDING
+      await syncJobDemandStatus(jobDemandId);
     }
 
     await createNotification({
@@ -177,8 +208,9 @@ exports.updateWorker = async (req, res) => {
     if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
     const sanitizedData = sanitizeSparseFields({ ...req.body });
-    const { existingDocuments, ...otherUpdates } = sanitizedData;
+    const { jobDemandId: newJobDemandId, existingDocuments, ...otherUpdates } = sanitizedData;
 
+    // Handle Document Logic
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file, index) => {
@@ -194,13 +226,33 @@ exports.updateWorker = async (req, res) => {
       updatedDocsList = [...updatedDocsList, ...newDocs];
     }
     
-    const updateData = { ...otherUpdates, documents: updatedDocsList };
+    const updateData = { ...otherUpdates, jobDemandId: newJobDemandId, documents: updatedDocsList };
 
     const updatedWorker = await Worker.findByIdAndUpdate(
       id, 
       { $set: updateData }, 
       { new: true, runValidators: true }
     );
+
+    // SYNC JOB DEMANDS IF CHANGED
+    const oldJobId = oldWorker.jobDemandId?.toString();
+    const newJobId = newJobDemandId?.toString();
+
+    if (oldJobId !== newJobId) {
+      // Remove from old
+      if (oldJobId) {
+        await JobDemand.findByIdAndUpdate(oldJobId, { $pull: { workers: id } });
+        await syncJobDemandStatus(oldJobId);
+      }
+      // Add to new
+      if (newJobId) {
+        await JobDemand.findByIdAndUpdate(newJobId, { $addToSet: { workers: id } });
+        await syncJobDemandStatus(newJobId);
+      }
+    } else if (newJobId) {
+      // If same job, just sync in case requiredWorkers changed
+      await syncJobDemandStatus(newJobId);
+    }
 
     await createNotification({
       companyId,
@@ -293,14 +345,21 @@ exports.deleteWorker = async (req, res) => {
       });
     }
 
-    if (worker.jobDemandId) {
-      await JobDemand.findByIdAndUpdate(worker.jobDemandId, { 
+    const jobDemandId = worker.jobDemandId;
+    const workerName = worker.name;
+
+    if (jobDemandId) {
+      await JobDemand.findByIdAndUpdate(jobDemandId, { 
         $pull: { workers: worker._id } 
       });
     }
 
-    const workerName = worker.name;
     await Worker.deleteOne({ _id: worker._id });
+
+    // SYNC STATUS AFTER DELETE (RE-OPEN IF NECESSARY)
+    if (jobDemandId) {
+      await syncJobDemandStatus(jobDemandId);
+    }
 
     await createNotification({
       companyId,
@@ -316,77 +375,40 @@ exports.deleteWorker = async (req, res) => {
 };
 
 /**
- * @desc Get Deployment Stats for Graph (Aggregated by Month)
+ * @desc Stats functions (unchanged logic)
  */
 exports.getDeploymentStats = async (req, res) => {
   try {
     const { companyId } = req.user;
-
     const stats = await Worker.aggregate([
-      {
-        $match: {
-          companyId: new mongoose.Types.ObjectId(companyId),
-          // We only care about workers whose status is 'deployed'
-          status: 'deployed'
-        }
-      },
-      // Unwind timeline to access the specific 'deployed' stage date
+      { $match: { companyId: new mongoose.Types.ObjectId(companyId), status: 'deployed' } },
       { $unwind: "$stageTimeline" },
-      { 
-        $match: { 
-          "stageTimeline.stage": "deployed", 
-          "stageTimeline.status": "completed" 
-        } 
-      },
+      { $match: { "stageTimeline.stage": "deployed", "stageTimeline.status": "completed" } },
       {
         $group: {
-          _id: {
-            year: { $year: "$stageTimeline.date" },
-            month: { $month: "$stageTimeline.date" }
-          },
+          _id: { year: { $year: "$stageTimeline.date" }, month: { $month: "$stageTimeline.date" } },
           count: { $sum: 1 }
         }
       },
       { $sort: { "_id.year": 1, "_id.month": 1 } }
     ]);
-
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
-    const formattedData = stats.map(item => ({
-      name: monthNames[item._id.month - 1],
-      total: item.count
-    }));
-
+    const formattedData = stats.map(item => ({ name: monthNames[item._id.month - 1], total: item.count }));
     res.status(StatusCodes.OK).json({ success: true, data: formattedData });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
-/**
- * @desc Get Worker Status Stats (Counts of pending, processing, deployed, rejected)
- */
 exports.getWorkerStatusStats = async (req, res) => {
   try {
     const { companyId } = req.user;
-
     const stats = await Worker.aggregate([
       { $match: { companyId: new mongoose.Types.ObjectId(companyId) } },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 }
-        }
-      }
+      { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
-
     const statusMap = { pending: 0, processing: 0, deployed: 0, rejected: 0 };
-    stats.forEach(item => {
-      if (statusMap.hasOwnProperty(item._id)) {
-        statusMap[item._id] = item.count;
-      }
-    });
-
+    stats.forEach(item => { if (statusMap.hasOwnProperty(item._id)) statusMap[item._id] = item.count; });
     res.status(StatusCodes.OK).json({ success: true, data: statusMap });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
