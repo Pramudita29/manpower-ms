@@ -658,7 +658,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         {/* This chart is unchanged from your original code */}
         <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
           <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-slate-900" /> Entity Distribution
+            <div className="w-2 h-2 rounded-full bg-slate-900" /> Organizational Overview
           </h3>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
