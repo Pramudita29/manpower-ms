@@ -15,16 +15,29 @@ export function Header({
     const [isMarkingRead, setIsMarkingRead] = useState(false);
     const dropdownRef = useRef(null);
 
-    // 1. IMPROVED USER DATA MAPPING
+    // 1. ROBUST USER DATA MAPPING
     const userData = useMemo(() => {
-        const name = user?.fullName || user?.data?.fullName || user?.name || "User";
-        const role = user?.role || user?.data?.role || "Employee";
+        // Digging deep to find the name in any common API structure
+        const name = 
+            user?.fullName || 
+            user?.user?.fullName || 
+            user?.data?.fullName || 
+            user?.name || 
+            user?.user?.name || 
+            "User";
+
+        const role = 
+            user?.role || 
+            user?.user?.role || 
+            user?.data?.role || 
+            "Employee";
 
         return {
-            id: String(user?._id || user?.id || ""),
+            id: String(user?._id || user?.id || user?.user?._id || ""),
             fullName: name,
             role: role,
-            avatar: name.charAt(0).toUpperCase(),
+            // Fallback avatar if name is "User" or empty
+            avatar: name && name !== "User" ? name.charAt(0).toUpperCase() : "U",
         };
     }, [user]);
 
@@ -32,7 +45,7 @@ export function Header({
     const unreadNotifications = useMemo(() => {
         const list = Array.isArray(notifications) ? notifications : [];
         return list
-            .filter((n) => n.isRead === false) // Uses the boolean we inject in the controller
+            .filter((n) => n.isRead === false)
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }, [notifications]);
 
@@ -59,8 +72,6 @@ export function Header({
         try {
             if (typeof onMarkAllRead === 'function') {
                 await onMarkAllRead();
-                // We keep the dropdown open or closed based on your preference
-                // Usually better to stay open so they see the "You're all caught up!" state
             }
         } catch (err) {
             console.error("Header: Failed to mark as read", err);
@@ -134,8 +145,7 @@ export function Header({
                                                         </span>{' '}
                                                         {item.content}
                                                     </p>
-                                                    {/* Category Badge */}
-                                                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-bold uppercase">
+                                                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-bold uppercase whitespace-nowrap">
                                                         {item.category}
                                                     </span>
                                                 </div>
@@ -182,7 +192,10 @@ export function Header({
                             </div>
                             {onLogout && (
                                 <button
-                                    onClick={onLogout}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onLogout();
+                                    }}
                                     className="absolute -bottom-1 -right-1 p-1 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"
                                     title="Logout"
                                 >
