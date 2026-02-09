@@ -6,7 +6,8 @@ import {
   Plus,
   Search,
   X,
-  AlertCircle
+  AlertCircle,
+  UserCircle // Added for worker matches
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -39,14 +40,25 @@ export function JobDemandListPage({
     }
   };
 
+  /**
+   * UPDATED: Deep search logic
+   * Filters by Job Title, Employer Name, and assigned Workers
+   */
   const filtered = useMemo(() => {
+    const query = searchTerm.toLowerCase().trim();
+    if (!query) return jobDemands;
+
     return jobDemands.filter((jd) => {
-      const jobTitle = jd.jobTitle || '';
-      const employerName = jd.employerId?.employerName || jd.employerName || '';
-      return (
-        jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        employerName.toLowerCase().includes(searchTerm.toLowerCase())
+      const jobTitle = (jd.jobTitle || '').toLowerCase();
+      const employerName = (jd.employerId?.employerName || jd.employerName || '').toLowerCase();
+      
+      // Check if any assigned worker's name matches the search
+      const workerMatch = jd.workers?.some(w => 
+        (w.fullName || '').toLowerCase().includes(query) || 
+        (w.name || '').toLowerCase().includes(query)
       );
+
+      return jobTitle.includes(query) || employerName.includes(query) || workerMatch;
     });
   }, [jobDemands, searchTerm]);
 
@@ -78,7 +90,7 @@ export function JobDemandListPage({
           <Search className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
         </div>
         <Input
-          placeholder="Filter by title or company..."
+          placeholder="Search title, company, or worker..."
           className="pl-11 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-50 transition-all border-none ring-1 ring-slate-200"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -118,6 +130,11 @@ export function JobDemandListPage({
                     const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
                     const isAutoClosed = isFull || isExpired;
 
+                    // Identify if the search match was a specific worker
+                    const matchedWorker = searchTerm.length > 2 && jd.workers?.find(w => 
+                        (w.fullName || w.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+
                     return (
                       <TableRow
                         key={jd._id}
@@ -136,6 +153,13 @@ export function JobDemandListPage({
                               <p className="text-sm text-slate-400 font-semibold uppercase tracking-tight">
                                 {jd.employerId?.employerName || jd.employerName}
                               </p>
+                              {/* Worker Search Result Hint */}
+                              {matchedWorker && (
+                                <div className="flex items-center gap-1 mt-1 text-[10px] text-indigo-600 font-bold bg-indigo-50 w-fit px-2 py-0.5 rounded-md border border-indigo-100">
+                                  <UserCircle size={10} />
+                                  Match: {matchedWorker.fullName || matchedWorker.name}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </TableCell>
@@ -145,7 +169,7 @@ export function JobDemandListPage({
                             <span className="text-lg font-black text-slate-700">
                               {filled}/{required}
                             </span>
-                            {isFull && <span className="text-[10px] text-emerald-600 font-bold uppercase">Filled</span>}
+                            {isFull && <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter">Filled</span>}
                           </div>
                         </TableCell>
 
@@ -191,7 +215,7 @@ export function JobDemandListPage({
                         </div>
                         <div className="space-y-1">
                           <h3 className="text-slate-900 font-bold text-xl">No results match your search</h3>
-                          <p className="text-slate-400 text-sm italic">Try a different keyword or create a new entry.</p>
+                          <p className="text-slate-400 text-sm italic">Try searching by title, company, or worker name.</p>
                         </div>
                       </div>
                     </TableCell>

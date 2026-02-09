@@ -7,7 +7,8 @@ import {
     Clock,
     Phone,
     Search,
-    Users
+    Users,
+    UserCheck // Replaced AlertCircle with UserCheck for "Deployed"
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -31,12 +32,13 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-    // --- Stats Calculation ---
+    // --- 1. Updated Stats Calculation ---
     const stats = {
         total: workers.length,
         active: workers.filter(w => w.status?.toLowerCase() === 'active').length,
         processing: workers.filter(w => ['processing', 'pending'].includes(w.status?.toLowerCase())).length,
-        unassigned: workers.filter(w => !w.employerId).length
+        // Logic: Deployed means they have an employer assigned
+        deployed: workers.filter(w => !!w.employerId).length 
     };
 
     // --- Filtering Logic ---
@@ -59,6 +61,7 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
     const getStatusVariant = (status) => {
         switch (status?.toLowerCase()) {
             case 'active': return 'success';
+            case 'deployed': return 'success'; // Added variant for deployed
             case 'processing': return 'warning';
             case 'pending': return 'secondary';
             default: return 'outline';
@@ -67,7 +70,7 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* 1. Header Section */}
+            {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Workers</h1>
@@ -75,15 +78,15 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
                 </div>
             </div>
 
-            {/* 2. Stats Grid */}
+            {/* 2. Updated Stats Grid (Unassigned -> Deployed) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <QuickStat cardTitle="Total Workers" value={stats.total} icon={<Users className="text-blue-600" />} bgColor="bg-blue-50" />
                 <QuickStat cardTitle="Active Status" value={stats.active} icon={<CheckCircle className="text-emerald-600" />} bgColor="bg-emerald-50" />
                 <QuickStat cardTitle="Processing" value={stats.processing} icon={<Clock className="text-orange-600" />} bgColor="bg-orange-50" />
-                <QuickStat cardTitle="Unassigned" value={stats.unassigned} icon={<AlertCircle className="text-rose-600" />} bgColor="bg-rose-50" />
+                <QuickStat cardTitle="Deployed" value={stats.deployed} icon={<UserCheck className="text-indigo-600" />} bgColor="bg-indigo-50" />
             </div>
 
-            {/* 3. Table Card */}
+            {/* Table Card */}
             <Card className="border-none shadow-sm bg-white overflow-hidden">
                 <CardHeader className="pb-4 border-b border-gray-50">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -92,9 +95,8 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
                         </CardTitle>
 
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
-                            {/* Status Tabs */}
                             <div className="flex flex-wrap gap-1 bg-gray-100/80 p-1 rounded-xl">
-                                {['all', 'active', 'processing', 'pending'].map((status) => (
+                                {['all', 'active', 'processing', 'pending', 'deployed'].map((status) => (
                                     <button
                                         key={status}
                                         onClick={() => setStatusFilter(status)}
@@ -108,7 +110,6 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
                                 ))}
                             </div>
 
-                            {/* Search */}
                             <div className="relative w-full sm:w-64">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                 <Input
@@ -156,19 +157,20 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
                                             <TableCell className="font-mono text-sm text-gray-500">{worker.passportNumber}</TableCell>
                                             <TableCell>
                                                 <Badge variant={getStatusVariant(worker.status)} className="capitalize px-2 py-0.5 text-[10px]">
-                                                    {worker.status}
+                                                    {worker.status || 'Pending'}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md capitalize">
-                                                    {worker.currentStage?.replace(/_/g, ' ')}
+                                                    {worker.currentStage?.replace(/_/g, ' ') || 'New'}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2 text-sm">
-                                                    <Building2 size={14} className={worker.employerId ? "text-blue-500" : "text-gray-300"} />
-                                                    <span className={worker.employerId ? "font-medium text-gray-700" : "italic text-gray-400"}>
-                                                        {worker.employerId?.name || worker.employerId?.employerName || "Unassigned"}
+                                                    <Building2 size={14} className={worker.employerId ? "text-indigo-500" : "text-gray-300"} />
+                                                    <span className={worker.employerId ? "font-semibold text-indigo-700" : "italic text-gray-400"}>
+                                                        {/* 3. Updated Table Display: Unassigned -> Not Deployed */}
+                                                        {worker.employerId?.name || worker.employerId?.employerName || "Not Deployed"}
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -194,7 +196,7 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
 
 function QuickStat({ cardTitle, value, icon, bgColor }) {
     return (
-        <Card className="border-none shadow-sm overflow-hidden">
+        <Card className="border-none shadow-sm overflow-hidden transition-all hover:shadow-md">
             <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                     <div>
