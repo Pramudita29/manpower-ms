@@ -6,18 +6,16 @@ const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 
 /**
- * @desc    Get all sub-agents (Company-wide view with worker counts)
+ * @desc    Get all sub-agents (Company-wide view with worker names for search)
  */
 exports.getSubAgents = async (req, res) => {
   try {
     const { companyId } = req.user;
 
-    const matchStage = {
-      companyId: new mongoose.Types.ObjectId(companyId)
-    };
-
     const agents = await SubAgent.aggregate([
-      { $match: matchStage },
+      { 
+        $match: { companyId: new mongoose.Types.ObjectId(companyId) } 
+      },
       {
         $lookup: {
           from: 'workers',
@@ -28,10 +26,12 @@ exports.getSubAgents = async (req, res) => {
       },
       {
         $addFields: {
-          totalWorkersBrought: { $size: '$workersList' }
+          totalWorkersBrought: { $size: '$workersList' },
+          // This field enables searching for an agent by their worker's name
+          workerNames: '$workersList.fullName' 
         }
       },
-      { $project: { workersList: 0 } },
+      { $project: { workersList: 0 } }, // Keep payload light by removing full worker objects
       { $sort: { name: 1 } }
     ]);
 
@@ -72,12 +72,9 @@ exports.getSubAgentById = async (req, res) => {
     if (!agent) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: 'Sub-agent not found or does not belong to your company'
+        message: 'Sub-agent not found'
       });
     }
-
-    // Optional: populate createdBy or other fields if needed
-    // await agent.populate('createdBy', 'fullName email');
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -101,7 +98,6 @@ exports.createSubAgent = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // Prevent double creation (5-second window)
     const recentAgent = await SubAgent.findOne({
       name,
       companyId,
@@ -111,7 +107,7 @@ exports.createSubAgent = async (req, res) => {
     if (recentAgent) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "Duplicate entry detected. Please wait a moment."
+        message: "Duplicate entry detected. Please wait."
       });
     }
 
@@ -121,7 +117,6 @@ exports.createSubAgent = async (req, res) => {
       createdBy: userId
     });
 
-    // Notify
     await createNotification({
       companyId,
       createdBy: userId,
@@ -140,29 +135,25 @@ exports.createSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Update sub-agent + Notify
+ * @desc    Update sub-agent (Company-wide: all employees can edit)
  */
 exports.updateSubAgent = async (req, res) => {
   try {
-    const { companyId, role } = req.user;
+    const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    let filter = { _id: req.params.id, companyId };
-
-    // Role check: Only admin or creator can edit
-    if (role !== 'admin' && role !== 'tenant_admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
-
-    const agent = await SubAgent.findOneAndUpdate(filter, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    // We only filter by _id and companyId. 
+    // This allows any employee in the company to update any agent.
+    const agent = await SubAgent.findOneAndUpdate(
+      { _id: req.params.id, companyId },
+      req.body,
+      { new: true, runValidators: true }
+    );
 
     if (!agent) {
-      return res.status(StatusCodes.FORBIDDEN).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: "Unauthorized or sub-agent not found"
+        message: "Sub-agent not found or unauthorized"
       });
     }
 
@@ -184,25 +175,20 @@ exports.updateSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Delete sub-agent + Notify
+ * @desc    Delete sub-agent (Company-wide: all employees can delete)
  */
 exports.deleteSubAgent = async (req, res) => {
   try {
-    const { companyId, role } = req.user;
+    const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    let filter = { _id: req.params.id, companyId };
-
-    if (role !== 'admin' && role !== 'tenant_admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
-
-    const agentToDelete = await SubAgent.findOne(filter);
+    // Find agent belonging to company, regardless of who created it
+    const agentToDelete = await SubAgent.findOne({ _id: req.params.id, companyId });
 
     if (!agentToDelete) {
-      return res.status(StatusCodes.FORBIDDEN).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: "Unauthorized or sub-agent not found"
+        message: "Sub-agent not found or unauthorized"
       });
     }
 
@@ -238,7 +224,7 @@ exports.getSubAgentWorkers = async (req, res) => {
     if (!agent) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        message: "Sub-agent not found or does not belong to your company"
+        message: "Sub-agent not found"
       });
     }
 
