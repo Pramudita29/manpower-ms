@@ -9,7 +9,8 @@ import {
     Target,
     Users,
     AlertTriangle,
-    CheckCircle
+    CheckCircle,
+    UserCircle // Added for worker matches
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -33,16 +34,29 @@ import {
 export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading }) {
     const [searchTerm, setSearchTerm] = useState('');
 
+    /**
+     * UPDATED: Deep search logic
+     * Filters by Job Title, Employer Name, and individual Worker names
+     */
     const filtered = useMemo(() => {
+        const query = searchTerm.toLowerCase().trim();
+        if (!query) return jobDemands;
+
         return jobDemands.filter((jd) => {
-            const jobTitle = jd.jobTitle || '';
-            const employer = jd.employerId?.employerName || jd.employerName || '';
-            return jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                   employer.toLowerCase().includes(searchTerm.toLowerCase());
+            const jobTitle = (jd.jobTitle || '').toLowerCase();
+            const employer = (jd.employerId?.employerName || jd.employerName || '').toLowerCase();
+            
+            // Check if any assigned worker's name matches the search
+            const workerMatch = jd.workers?.some(w => 
+                (w.fullName || '').toLowerCase().includes(query) || 
+                (w.name || '').toLowerCase().includes(query)
+            );
+
+            return jobTitle.includes(query) || employer.includes(query) || workerMatch;
         });
     }, [jobDemands, searchTerm]);
 
-    // Stats calculation
+    // Stats calculation based on total dataset
     const activeCount = jobDemands.filter(j => j.status?.toLowerCase() === 'open').length;
     const totalRequired = jobDemands.reduce((acc, curr) => acc + (Number(curr.requiredWorkers) || 0), 0);
 
@@ -114,7 +128,7 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                             />
                             <Input
                                 type="text"
-                                placeholder="Search by title or employer..."
+                                placeholder="Search title, employer, or worker..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
@@ -146,9 +160,13 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                         const required = jd.requiredWorkers || 0;
                                         const percent = required > 0 ? (assigned / required) * 100 : 0;
                                         
-                                        // Specific Status Logic
                                         const isFull = assigned >= required && required > 0;
                                         const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
+
+                                        // Identify if the search match was a specific worker
+                                        const matchedWorker = searchTerm.length > 2 && jd.workers?.find(w => 
+                                            (w.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                        );
 
                                         return (
                                             <TableRow
@@ -168,6 +186,13 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                                             <p className="text-xs text-gray-500 mt-0.5 uppercase">
                                                                 {jd.employerId?.employerName || jd.employerName}
                                                             </p>
+                                                            {/* Worker Match Indicator */}
+                                                            {matchedWorker && (
+                                                                <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-semibold bg-blue-50 w-fit px-1.5 py-0.5 rounded">
+                                                                    <UserCircle size={10} />
+                                                                    Worker: {matchedWorker.fullName}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </TableCell>

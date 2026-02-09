@@ -37,18 +37,19 @@ exports.getJobDemands = async (req, res) => {
       .sort({ createdAt: -1 });
 
     const dataWithLiveCounts = await Promise.all(jobDemands.map(async (jd) => {
-      const actualWorkerCount = await Worker.countDocuments({ jobDemandId: jd._id });
+      // FIX: Fetch actual worker names to allow frontend searching
+      const linkedWorkers = await Worker.find({ jobDemandId: jd._id }).select('name fullName');
+      
+      const actualWorkerCount = linkedWorkers.length;
       const computedStatus = getComputedStatus(jd, actualWorkerCount);
 
-      // Only update database if the status has actually changed
       if (jd.status !== computedStatus) {
         await JobDemand.updateOne({ _id: jd._id }, { $set: { status: computedStatus } });
         jd.status = computedStatus;
       }
 
       const demandObj = jd.toObject();
-      // Ensure frontend sees correct length for progress bars/logic
-      demandObj.workers = new Array(actualWorkerCount).fill({}); 
+      demandObj.workers = linkedWorkers; // Return real worker data
       return demandObj;
     }));
 
@@ -85,7 +86,6 @@ exports.getJobDemandById = async (req, res) => {
     const workersByRef = await Worker.find({ jobDemandId: id, companyId })
       .select('name fullName status currentStage passportNumber citizenshipNumber contact');
 
-    // Sync status on the fly
     const computedStatus = getComputedStatus(jobDemandDoc, workersByRef.length);
     if (jobDemandDoc.status !== computedStatus) {
       await JobDemand.updateOne({ _id: id }, { $set: { status: computedStatus } });
@@ -119,7 +119,6 @@ exports.createJobDemand = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ error: "Employer not found" });
     }
 
-    // Determine initial status based on deadline
     const initialStatus = (otherData.deadline && new Date(otherData.deadline) < new Date()) ? 'closed' : 'open';
 
     const jobDemand = await JobDemand.create({
@@ -162,7 +161,6 @@ exports.updateJobDemand = async (req, res) => {
       if (employer) updateData.employerId = employer._id;
     }
 
-    // Update first
     const jobDemand = await JobDemand.findOneAndUpdate(filter, updateData, {
       new: true,
       runValidators: true
@@ -172,7 +170,6 @@ exports.updateJobDemand = async (req, res) => {
       return res.status(StatusCodes.FORBIDDEN).json({ success: false, error: "Access denied or not found" });
     }
 
-    // Now recalculate status based on potential new requiredWorkers or deadline
     const actualWorkerCount = await Worker.countDocuments({ jobDemandId: id });
     const computedStatus = getComputedStatus(jobDemand, actualWorkerCount);
     
@@ -234,7 +231,10 @@ exports.getEmployerJobDemands = async (req, res) => {
     const jobDemands = await JobDemand.find({ employerId, companyId }).sort({ createdAt: -1 });
 
     const updatedDemands = await Promise.all(jobDemands.map(async (jd) => {
-      const actualWorkerCount = await Worker.countDocuments({ jobDemandId: jd._id });
+      // FIX: Fetch actual worker names here too
+      const linkedWorkers = await Worker.find({ jobDemandId: jd._id }).select('name fullName');
+      
+      const actualWorkerCount = linkedWorkers.length;
       const computedStatus = getComputedStatus(jd, actualWorkerCount);
 
       if (jd.status !== computedStatus) {
@@ -243,7 +243,7 @@ exports.getEmployerJobDemands = async (req, res) => {
       }
 
       const demandObj = jd.toObject();
-      demandObj.workers = new Array(actualWorkerCount).fill({}); 
+      demandObj.workers = linkedWorkers; 
       return demandObj;
     }));
 
