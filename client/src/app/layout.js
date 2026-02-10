@@ -9,22 +9,30 @@ import '../app/global.css';
 
 export default function RootLayout({ children }) {
     useEffect(() => {
-        // Axios Global Security Interceptor
         const interceptor = axios.interceptors.response.use(
             (response) => response,
             (error) => {
-                // If the backend returns 401 (Unauthorized)
+                // 1. Check if the error is 401
                 if (error.response && error.response.status === 401) {
-                    console.warn("Session expired. Redirecting to login...");
+                    
+                    // 2. CHECK: Are we already on the login page?
+                    const isLoginPage = window.location.pathname === '/login';
 
-                    // Unified Cleanup
-                    localStorage.clear();
-                    Cookies.remove('token', { path: '/' });
-                    Cookies.remove('role', { path: '/' });
+                    // 3. Only redirect if we ARE NOT on the login page
+                    if (!isLoginPage) {
+                        console.warn("Session expired. Redirecting to login...");
 
-                    // Force redirect to login
-                    if (typeof window !== 'undefined') {
-                        window.location.href = '/login';
+                        localStorage.clear();
+                        Cookies.remove('token', { path: '/' });
+                        Cookies.remove('role', { path: '/' });
+
+                        if (typeof window !== 'undefined') {
+                            window.location.href = '/login';
+                        }
+                    } else {
+                        // If we are on login page, just let the LoginPage component 
+                        // handle the error (show "Invalid credentials" toast)
+                        console.log("Login failed - staying on page to show error.");
                     }
                 }
                 return Promise.reject(error);
@@ -37,16 +45,7 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body className="antialiased">
-                <Toaster
-                    position="top-right"
-                    toastOptions={{
-                        duration: 4000,
-                        style: {
-                            background: '#333',
-                            color: '#fff',
-                        },
-                    }}
-                />
+                <Toaster position="top-right" />
                 {children}
             </body>
         </html>

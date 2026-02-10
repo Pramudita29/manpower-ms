@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-import { rateLimit } from 'express-rate-limit'
+const { rateLimit } = require('express-rate-limit');
 const {
     register, login, registerEmployee,
     getAllEmployees, getSingleEmployeeDetails,
