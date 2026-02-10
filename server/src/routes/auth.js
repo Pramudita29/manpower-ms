@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const rateLimit = require('express-rate-limit');
+import { rateLimit } from 'express-rate-limit'
 const {
     register, login, registerEmployee,
     getAllEmployees, getSingleEmployeeDetails,
@@ -31,12 +31,15 @@ const handleMultipart = (req, res, next) => {
 };
 
 // --- RATE LIMITER CONFIG ---
+// --- RATE LIMITER CONFIG ---
 const createLimiter = (maxAttempts, mins) => rateLimit({
     windowMs: mins * 60 * 1000,
     max: maxAttempts,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => req.body.identifier || req.ip,
+    // ADD THIS LINE BELOW TO FIX THE ERROR
+    validate: { default: false }, 
     handler: (req, res) => {
         const remainingMs = req.rateLimit.resetTime - Date.now();
         const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
