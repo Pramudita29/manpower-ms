@@ -73,4 +73,4 @@ router.get('/employees', protect, authorizeRoles('admin', 'super_admin'), getAll
  */
 router.get('/employees/:id', protect, authorizeRoles('admin', 'super_admin'), getSingleEmployeeDetails);
 
-module.exports = router;
+module.exports = router;  
