@@ -44,24 +44,6 @@ const io = new Server(server, {
     }
 });
 
-// Make io accessible to routes via req.app.get('socketio')
-app.set('socketio', io);
-
-// Socket.io Connection Logic
-io.on('connection', (socket) => {
-    console.log('🔌 New client connected:', socket.id);
-
-    socket.on('join', (companyId) => {
-        if (companyId && companyId !== "undefined") {
-            socket.join(String(companyId));
-            console.log(`👤 Socket ${socket.id} joined room: ${companyId}`);
-        }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('❌ Client disconnected');
-    });
-});
 
 // --- KAFKA BRIDGE LOGIC ---
 // This bridge listens to Redpanda Cloud and emits to Socket.io
