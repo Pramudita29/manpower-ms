@@ -28,7 +28,7 @@ import {
 
 export function WorkerManagementPage({
   workers = [],
-  onNavigate,
+  onViewChange, // FIX: Renamed from onNavigate to avoid DashboardLayout override
   onSelectWorker,
   onDeleteWorker 
 }) {
@@ -73,7 +73,7 @@ export function WorkerManagementPage({
           <p className="text-slate-500 font-medium italic">Track processing stages and deployment status for all recruits.</p>
         </div>
         <Button
-          onClick={() => onNavigate('add')}
+          onClick={() => onViewChange('add')} // FIX: Using onViewChange
           className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-6 h-12 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
         >
           <Plus size={20} className="mr-2 stroke-[3px] shrink-0" />

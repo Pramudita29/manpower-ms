@@ -200,9 +200,14 @@ export function AddWorkerPage({
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
       <div className="flex items-center gap-4">
-        <button type="button" onClick={onNavigate} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <ArrowLeft size={22} className="text-gray-600" />
-        </button>
+        {/* Change from onClick={onNavigate} to this: */}
+<button 
+  type="button" 
+  onClick={() => onNavigate('worker')} 
+  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+>
+  <ArrowLeft size={22} className="text-gray-600" />
+</button>
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             {isEditMode ? "Edit Worker Profile" : "Register New Worker"}

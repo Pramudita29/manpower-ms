@@ -57,9 +57,17 @@ function WorkersContent() {
         }
     };
 
-    const handleNavigate = (newView, data = null) => {
+    // FIX: Renamed to avoid collision with DashboardLayout's onNavigate
+    const handleViewChange = (newView, data = null) => {
         setSelectedWorker(data);
         setView(newView);
+        
+        // Sync URL so useEffect doesn't overwrite state
+        if (newView === 'add') {
+            router.push('/dashboard/employee/worker?action=add');
+        } else if (newView === 'list') {
+            router.push('/dashboard/employee/worker');
+        }
     };
 
     const handleSave = async (payload) => {
@@ -103,9 +111,7 @@ function WorkersContent() {
             const result = await res.json();
             if (result.success) {
                 await fetchAllData(token);
-                setView('list');
-                setSelectedWorker(null);
-                router.replace('/dashboard/employee/worker');
+                handleViewChange('list');
             } else {
                 alert(result.message || 'Failed to save worker');
             }
@@ -115,19 +121,13 @@ function WorkersContent() {
         }
     };
 
-    const goToList = () => {
-        setView('list');
-        setSelectedWorker(null);
-        router.replace('/dashboard/employee/worker');
-    };
-
     return (
         <DashboardLayout role="employee">
             {view === 'list' && (
                 <WorkerManagementPage
                     workers={workers}
-                    onNavigate={handleNavigate}
-                    onSelectWorker={(w) => handleNavigate('details', w)}
+                    onViewChange={handleViewChange} // Updated prop name
+                    onSelectWorker={(w) => handleViewChange('details', w)}
                 />
             )}
             {(view === 'add' || view === 'edit') && (
@@ -136,14 +136,14 @@ function WorkersContent() {
                     employers={employers}
                     jobDemands={jobDemands}
                     subAgents={subAgents}
-                    onNavigate={goToList}
+                    onNavigate={() => handleViewChange('list')}
                     onSave={handleSave}
                 />
             )}
             {view === 'details' && selectedWorker && (
                 <WorkerDetailsPage
                     workerId={typeof selectedWorker === 'object' ? selectedWorker._id : selectedWorker}
-                    onNavigate={handleNavigate}
+                    onNavigate={handleViewChange}
                 />
             )}
         </DashboardLayout>

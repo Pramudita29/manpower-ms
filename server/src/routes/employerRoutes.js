@@ -19,7 +19,7 @@ router.route('/')
 
 // Routes that require an ID
 router.route('/:id')
-  .get(getEmployerDetails) // Added GET for detail view
+  .get(getEmployerDetails) // Added GET for detail view8
   .put(updateEmployer)
   .delete(deleteEmployer);
 

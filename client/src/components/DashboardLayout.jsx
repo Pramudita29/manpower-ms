@@ -19,13 +19,15 @@ export function DashboardLayout({ children, user: propUser, role }) {
 
     const API_BASE = apiUrl('/api');
 
-    // --- CENTRALIZED SMART NAVIGATION ---
-    // This fixes the "Double Path" and "Other Pages" issue
+    // --- CENTRALIZED SMART NAVIGATION (FIXED) ---
     const handleNavigate = useCallback((path) => {
-        if (!path) return;
+        // ERROR FIX: Check if path is a valid string before calling .startsWith()
+        // This prevents crashes when React passes an Event object instead of a string
+        if (!path || typeof path !== 'string') {
+            return; 
+        }
 
         // 1. Define the base path based on the user's role
-        // We normalize the role to handle "Admin", "admin", "Employee", etc.
         const userRole = (currentUser?.role || propUser?.role || role || "").toLowerCase();
         const base = userRole.includes('admin') ? '/dashboard/tenant-admin' : '/dashboard/employee';
         
@@ -155,7 +157,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
             <Sidebar
                 role={memoizedUser.role.toLowerCase()}
                 user={memoizedUser}
-                onNavigate={handleNavigate} // Uses internal smart navigator
+                onNavigate={handleNavigate}
                 onLogout={handleLogout}
             />
 
@@ -164,7 +166,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
                     user={memoizedUser}
                     notifications={notifications}
                     onMarkAllRead={handleMarkAllRead}
-                    onNavigate={handleNavigate} // Uses internal smart navigator
+                    onNavigate={handleNavigate}
                 />
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -175,7 +177,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
                                 onMarkAllRead: handleMarkAllRead,
                                 user: memoizedUser,
                                 refreshNotifications: fetchNotifications,
-                                // Passing the smart navigator down to child pages automatically
+                                // This onNavigate will now safely handle non-string inputs
                                 onNavigate: handleNavigate 
                             });
                         }
