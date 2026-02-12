@@ -91,18 +91,29 @@ export function EmployersListPage({ employers = [], onSelectEmployer, onNavigate
                 </div>
                 <div className="flex items-center gap-3">
                     <Button 
-                        variant={showFilters ? "secondary" : "outline"} 
-                        className={`rounded-full h-11 px-6 border-slate-200 transition-all font-bold ${
-                            showFilters ? 'bg-slate-900 text-white hover:bg-slate-800' : 'hover:bg-slate-50'
-                        }`}
-                        onClick={() => setShowFilters(!showFilters)}
-                    >
-                        {showFilters ? <X size={18} className="mr-2" /> : <Filter size={18} className="mr-2" />}
-                        {showFilters ? "Close Filters" : "Filter View"}
-                        {!showFilters && isFiltered && (
-                            <span className="ml-2 flex h-2 w-2 rounded-full bg-blue-500" />
-                        )}
-                    </Button>
+  variant={showFilters ? "default" : "outline"} 
+  className={`
+    rounded-full h-11 px-5 transition-all duration-200 ease-in-out font-medium
+    ${showFilters 
+      ? 'shadow-sm' 
+      : 'text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+    }
+  `}
+  onClick={() => setShowFilters(!showFilters)}
+>
+  <div className="flex items-center gap-2.5">
+    {showFilters ? <X size={18} /> : <Filter size={18} />}
+    
+    <span>{showFilters ? "Close Filters" : "Filter View"}</span>
+
+    {!showFilters && isFiltered && (
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+      </span>
+    )}
+  </div>
+</Button>
                 </div>
             </div>
 
