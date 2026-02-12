@@ -3,14 +3,14 @@ import {
     ArrowUpRight,
     Briefcase,
     Clock,
-    Filter,
     LayoutDashboard,
     Search,
     Target,
     Users,
     AlertTriangle,
     CheckCircle,
-    UserCircle // Added for worker matches
+    UserCircle,
+    X
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -31,33 +31,47 @@ import {
     TableRow,
 } from '../ui/table';
 
+// Removed 'draft' from options
+const STATUS_OPTIONS = ['all', 'open', 'closed'];
+
 export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
 
     /**
-     * UPDATED: Deep search logic
-     * Filters by Job Title, Employer Name, and individual Worker names
+     * Filter logic handles Search and Status (Open/Closed)
      */
     const filtered = useMemo(() => {
-        const query = searchTerm.toLowerCase().trim();
-        if (!query) return jobDemands;
+        let result = jobDemands;
 
-        return jobDemands.filter((jd) => {
-            const jobTitle = (jd.jobTitle || '').toLowerCase();
-            const employer = (jd.employerId?.employerName || jd.employerName || '').toLowerCase();
-            
-            // Check if any assigned worker's name matches the search
-            const workerMatch = jd.workers?.some(w => 
-                (w.fullName || '').toLowerCase().includes(query) || 
-                (w.name || '').toLowerCase().includes(query)
+        // 1. Filter by Status
+        if (statusFilter !== 'all') {
+            result = result.filter(jd => 
+                (jd.status || 'open').toLowerCase() === statusFilter.toLowerCase()
             );
+        }
 
-            return jobTitle.includes(query) || employer.includes(query) || workerMatch;
-        });
-    }, [jobDemands, searchTerm]);
+        // 2. Filter by Search Query
+        const query = searchTerm.toLowerCase().trim();
+        if (query) {
+            result = result.filter((jd) => {
+                const jobTitle = (jd.jobTitle || '').toLowerCase();
+                const employer = (jd.employerId?.employerName || jd.employerName || '').toLowerCase();
+                
+                const workerMatch = jd.workers?.some(w => 
+                    (w.fullName || '').toLowerCase().includes(query) || 
+                    (w.name || '').toLowerCase().includes(query)
+                );
 
-    // Stats calculation based on total dataset
-    const activeCount = jobDemands.filter(j => j.status?.toLowerCase() === 'open').length;
+                return jobTitle.includes(query) || employer.includes(query) || workerMatch;
+            });
+        }
+
+        return result;
+    }, [jobDemands, searchTerm, statusFilter]);
+
+    // Stats calculation
+    const activeCount = jobDemands.filter(j => (j.status || 'open').toLowerCase() === 'open').length;
     const totalRequired = jobDemands.reduce((acc, curr) => acc + (Number(curr.requiredWorkers) || 0), 0);
 
     return (
@@ -70,10 +84,24 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                         Global Demand Oversight & Fulfillment Tracking
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" className="hidden sm:flex border-gray-200">
-                        <Filter size={18} className="mr-2" /> Filter
-                    </Button>
+                
+                {/* STATUS FILTER BUTTONS */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0">
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        {STATUS_OPTIONS.map((opt) => (
+                            <button
+                                key={opt}
+                                onClick={() => setStatusFilter(opt)}
+                                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all uppercase ${
+                                    statusFilter === opt 
+                                    ? 'bg-white text-blue-600 shadow-sm' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -118,9 +146,16 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
             <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
                 <CardHeader className="bg-white border-b px-6 py-5">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <CardTitle className="text-lg font-bold text-gray-800">
-                            Demand Inventory
-                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg font-bold text-gray-800">
+                                Demand Inventory
+                            </CardTitle>
+                            {statusFilter !== 'all' && (
+                                <Badge variant="outline" className="text-blue-600 border-blue-100 bg-blue-50">
+                                    {statusFilter.toUpperCase()}
+                                </Badge>
+                            )}
+                        </div>
                         <div className="relative w-full sm:w-96 group">
                             <Search
                                 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"
@@ -133,6 +168,14 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
                             />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </CardHeader>
@@ -163,7 +206,6 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                         const isFull = assigned >= required && required > 0;
                                         const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
 
-                                        // Identify if the search match was a specific worker
                                         const matchedWorker = searchTerm.length > 2 && jd.workers?.find(w => 
                                             (w.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())
                                         );
@@ -186,7 +228,6 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                                             <p className="text-xs text-gray-500 mt-0.5 uppercase">
                                                                 {jd.employerId?.employerName || jd.employerName}
                                                             </p>
-                                                            {/* Worker Match Indicator */}
                                                             {matchedWorker && (
                                                                 <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-semibold bg-blue-50 w-fit px-1.5 py-0.5 rounded">
                                                                     <UserCircle size={10} />
@@ -212,10 +253,10 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                                 <TableCell>
                                                     <div className="flex flex-col gap-1">
                                                         <Badge
-                                                            variant={jd.status?.toLowerCase() === 'open' ? 'success' : 'secondary'}
+                                                            variant={(jd.status || 'open').toLowerCase() === 'open' ? 'success' : 'secondary'}
                                                             className="rounded-md px-2.5 py-0.5 text-[10px] font-bold border-none w-fit"
                                                         >
-                                                            {(jd.status || 'Draft').toUpperCase()}
+                                                            {(jd.status || 'OPEN').toUpperCase()}
                                                         </Badge>
                                                         {isExpired && (
                                                             <span className="text-[9px] font-bold text-red-500 flex items-center gap-1">
@@ -250,7 +291,7 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                             </div>
                                             <h3 className="text-gray-900 font-bold text-lg">No records found</h3>
                                             <p className="text-gray-500 max-w-xs mx-auto mt-2 text-sm">
-                                                Adjust your search or check your demand inventory.
+                                                Try adjusting your filter or search query.
                                             </p>
                                         </TableCell>
                                     </TableRow>
