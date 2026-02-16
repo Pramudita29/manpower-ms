@@ -1,15 +1,15 @@
 "use client";
+import { apiUrl } from '@/lib/api';
 import {
     ArrowLeft, CheckCircle2, Circle,
     Eye, EyeOff, Loader2, Lock,
     Mail, MapPin, Phone, User, UserPlus
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast } from 'react-hot-toast'; // Removed Toaster import
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
-import { apiUrl } from '@/lib/api';
 
 export function AddEmployeeForm({ onBack, onSuccess }) {
     const [formData, setFormData] = useState({
@@ -34,7 +34,6 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // MANDATORY: Name, Phone, Address, Valid Password. Email is EXCLUDED from check.
         if (!formData.fullName || !formData.contactNumber || !formData.address || !isPasswordValid) {
             toast.error("Please fill all required fields correctly.");
             return;
@@ -55,10 +54,14 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
             });
 
             const data = await response.json();
+
             if (response.ok) {
-                toast.success("Staff registered successfully!", { id: tid });
+                // Success: Tid is updated. 
+                // If your layout.js auto-toasts, you can even remove this line.
+                toast.success(data.msg || "Staff registered successfully!", { id: tid });
                 setTimeout(() => onSuccess(), 1200);
             } else {
+                // Error: We update the loading toast to show the error message from server
                 toast.error(data.msg || "Registration failed", { id: tid });
             }
         } catch (err) {
@@ -70,7 +73,8 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-            <Toaster position="top-center" />
+            {/* REMOVED: <Toaster /> is now handled globally in layout.js */}
+
             <div className="max-w-3xl mx-auto">
                 <button
                     onClick={onBack}
@@ -126,7 +130,7 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
                                     </div>
                                 </div>
 
-                                {/* Email - NOT REQUIRED */}
+                                {/* Email */}
                                 <div className="space-y-2">
                                     <label className="block text-sm font-bold text-slate-400">Email Address (Optional)</label>
                                     <div className="relative">
@@ -164,18 +168,12 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
                                     </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 mt-3">
-                                    <div className={`flex items-center gap-2 text-xs ${passwordChecks.length ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                                        {passwordChecks.length ? <CheckCircle2 size={14} /> : <Circle size={14} />} 8+ Chars
-                                    </div>
-                                    <div className={`flex items-center gap-2 text-xs ${passwordChecks.upper ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                                        {passwordChecks.upper ? <CheckCircle2 size={14} /> : <Circle size={14} />} 1 Uppercase
-                                    </div>
-                                    <div className={`flex items-center gap-2 text-xs ${passwordChecks.number ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                                        {passwordChecks.number ? <CheckCircle2 size={14} /> : <Circle size={14} />} 1 Number
-                                    </div>
-                                    <div className={`flex items-center gap-2 text-xs ${passwordChecks.special ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                                        {passwordChecks.special ? <CheckCircle2 size={14} /> : <Circle size={14} />} 1 Symbol
-                                    </div>
+                                    {Object.entries(passwordChecks).map(([key, valid]) => (
+                                        <div key={key} className={`flex items-center gap-2 text-xs ${valid ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                            {valid ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                                            {key === 'length' ? '8+ Chars' : key === 'upper' ? '1 Uppercase' : key === 'number' ? '1 Number' : '1 Symbol'}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 

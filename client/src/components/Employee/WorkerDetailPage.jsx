@@ -1,6 +1,8 @@
 "use client";
+import { apiUrl } from '@/lib/api';
 import axios from 'axios';
 import {
+  AlertCircle,
   ArrowLeft,
   Briefcase,
   Calendar,
@@ -14,16 +16,14 @@ import {
   MapPin,
   Phone,
   ShieldCheck,
-  User,
   Trash2,
-  AlertCircle
+  User
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { apiUrl } from '@/lib/api';
 
 /**
  * UTILS & CONSTANTS
@@ -86,20 +86,20 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
 
   const handleStatusChange = async (stageIdentifier, newStatus) => {
     setIsUpdating(true);
-    
+
     // Optimistic UI Update
     const originalTimeline = [...localTimeline];
-    setLocalTimeline(prev => 
-      prev.map(item => 
-        (item._id === stageIdentifier || item.stage === stageIdentifier) 
-          ? { ...item, status: newStatus } 
+    setLocalTimeline(prev =>
+      prev.map(item =>
+        (item._id === stageIdentifier || item.stage === stageIdentifier)
+          ? { ...item, status: newStatus }
           : item
       )
     );
 
     try {
       const token = localStorage.getItem('token');
-      
+
       // We only need this call now because the Backend handles the global status sync
       await axios.patch(
         apiUrl(`/api/workers/${worker._id}/stage/${stageIdentifier}`),
@@ -111,7 +111,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
       await fetchWorkerData();
     } catch (err) {
       alert('Update failed');
-      setLocalTimeline(originalTimeline); 
+      setLocalTimeline(originalTimeline);
       fetchWorkerData();
     } finally { setIsUpdating(false); }
   };
@@ -181,9 +181,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <Button onClick={() => onNavigate('edit', worker)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-6 h-12">
                 Update Details
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleDeleteWorker} 
+              <Button
+                variant="outline"
+                onClick={handleDeleteWorker}
                 disabled={isDeleting}
                 className="bg-rose-600 hover:bg-red-700 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-none h-12 w-12 rounded-xl p-0 transition-all active:scale-90"
               >
@@ -218,11 +218,11 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                   <div>
                     <p className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Employer Assignment</p>
                     <h3 className="text-xl text-white font-bold leading-tight">
-                        {worker.employerId?.companyName || worker.employerId?.name || (
-                            <span className="text-slate-500 italic flex items-center gap-2">
-                                <AlertCircle size={18} /> Pending
-                            </span>
-                        )}
+                      {worker.employerId?.companyName || worker.employerId?.name || (
+                        <span className="text-slate-500 italic flex items-center gap-2">
+                          <AlertCircle size={18} /> Pending
+                        </span>
+                      )}
                     </h3>
                   </div>
                   <div className="p-3 bg-white/10 rounded-2xl">
@@ -277,10 +277,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase border-none ${
-                               item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                               item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
-                               item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
+                          <Badge className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase border-none ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                            item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
+                              item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
                             }`}>
                             {item.status}
                           </Badge>
@@ -329,9 +328,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                         </TableRow>
                       ))
                     ) : (
-                        <TableRow>
-                            <TableCell className="py-10 text-center text-slate-400 italic text-sm">No documents uploaded</TableCell>
-                        </TableRow>
+                      <TableRow>
+                        <TableCell className="py-10 text-center text-slate-400 italic text-sm">No documents uploaded</TableCell>
+                      </TableRow>
                     )}
                   </TableBody>
                 </Table>

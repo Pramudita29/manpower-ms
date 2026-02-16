@@ -5,7 +5,6 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { toast } from 'react-hot-toast';
 import { LoginPage } from '../../../components/LoginPage';
 import { apiUrl } from '@/lib/api';
 

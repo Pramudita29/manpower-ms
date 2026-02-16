@@ -1,14 +1,13 @@
 "use client";
 
+import { API_BASE_URL, apiUrl } from '@/lib/api';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
-import { apiUrl, API_BASE_URL } from '@/lib/api';
 
 export function DashboardLayout({ children, user: propUser, role }) {
     const [notifications, setNotifications] = useState([]);
@@ -21,26 +20,21 @@ export function DashboardLayout({ children, user: propUser, role }) {
 
     // --- CENTRALIZED SMART NAVIGATION (FIXED) ---
     const handleNavigate = useCallback((path) => {
-        // ERROR FIX: Check if path is a valid string before calling .startsWith()
-        // This prevents crashes when React passes an Event object instead of a string
         if (!path || typeof path !== 'string') {
-            return; 
+            return;
         }
 
-        // 1. Define the base path based on the user's role
         const userRole = (currentUser?.role || propUser?.role || role || "").toLowerCase();
         const base = userRole.includes('admin') ? '/dashboard/tenant-admin' : '/dashboard/employee';
-        
-        // 2. If the path is already absolute (starts with /dashboard), go there directly
+
         if (path.startsWith('/dashboard')) {
             router.push(path);
             return;
         }
 
-        // 3. Otherwise, build a clean absolute path
         const cleanSegment = path.startsWith('/') ? path.substring(1) : path;
         const finalPath = `${base}/${cleanSegment}`;
-        
+
         console.log("📍 Global Navigate to:", finalPath);
         router.push(finalPath);
     }, [router, currentUser, propUser, role]);
@@ -69,7 +63,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
         Cookies.remove('token', { path: '/' });
         Cookies.remove('role', { path: '/' });
         router.replace('/login');
-        toast.success("Logged out successfully");
+        // Toast removed from here
     }, [router]);
 
     // 3. ROBUST USER DATA MAPPING
@@ -80,7 +74,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
 
         return {
             id: String(activeUser?._id || activeUser?.id || ""),
-            companyId: String(activeUser?.companyId || activeUser?.user?.companyId || ""), 
+            companyId: String(activeUser?.companyId || activeUser?.user?.companyId || ""),
             fullName: name,
             role: userRole,
             avatar: name && name !== "User" ? name.charAt(0).toUpperCase() : "U",
@@ -125,7 +119,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
                 if (prev.find(n => n._id === notif._id)) return prev;
                 return [notif, ...prev];
             });
-            toast.success(`New ${notif.category}: ${notif.content}`, { position: 'bottom-right' });
+            // Toast removed from here
         });
 
         setSocket(newSocket);
@@ -145,10 +139,11 @@ export function DashboardLayout({ children, user: propUser, role }) {
 
             if (res.data.success) {
                 setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-                toast.success("Marked all as read");
+                // Toast removed from here
             }
         } catch (err) {
-            toast.error("Failed to sync notifications");
+            console.error("Failed to sync notifications", err);
+            // Toast removed from here
         }
     };
 
@@ -177,8 +172,7 @@ export function DashboardLayout({ children, user: propUser, role }) {
                                 onMarkAllRead: handleMarkAllRead,
                                 user: memoizedUser,
                                 refreshNotifications: fetchNotifications,
-                                // This onNavigate will now safely handle non-string inputs
-                                onNavigate: handleNavigate 
+                                onNavigate: handleNavigate
                             });
                         }
                         return child;

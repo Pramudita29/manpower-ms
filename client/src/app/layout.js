@@ -4,41 +4,37 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useEffect } from 'react';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import '../app/global.css';
 
 export default function RootLayout({ children }) {
     useEffect(() => {
         const interceptor = axios.interceptors.response.use(
-            (response) => response,
+            (response) => {
+                // AUTO-SUCCESS: If API returns a message for a change (POST/PUT/DELETE)
+                const method = response.config.method.toUpperCase();
+                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && response.data?.msg) {
+                    toast.success(response.data.msg);
+                }
+                return response;
+            },
             (error) => {
-                // 1. Check if the error is 401
-                if (error.response && error.response.status === 401) {
-                    
-                    // 2. CHECK: Are we already on the login page?
-                    const isLoginPage = window.location.pathname === '/login';
+                // AUTO-ERROR: Catch all API errors globally
+                const msg = error.response?.data?.msg || error.response?.data?.message || "Operation failed";
 
-                    // 3. Only redirect if we ARE NOT on the login page
-                    if (!isLoginPage) {
-                        console.warn("Session expired. Redirecting to login...");
+                // Only show toast if it's not a login failure (handled by login page)
+                if (!(error.response?.status === 401 && window.location.pathname === '/login')) {
+                    toast.error(msg);
+                }
 
-                        localStorage.clear();
-                        Cookies.remove('token', { path: '/' });
-                        Cookies.remove('role', { path: '/' });
-
-                        if (typeof window !== 'undefined') {
-                            window.location.href = '/login';
-                        }
-                    } else {
-                        // If we are on login page, just let the LoginPage component 
-                        // handle the error (show "Invalid credentials" toast)
-                        console.log("Login failed - staying on page to show error.");
-                    }
+                if (error.response?.status === 401 && window.location.pathname !== '/login') {
+                    localStorage.clear();
+                    Cookies.remove('token', { path: '/' });
+                    window.location.href = '/login';
                 }
                 return Promise.reject(error);
             }
         );
-
         return () => axios.interceptors.response.eject(interceptor);
     }, []);
 

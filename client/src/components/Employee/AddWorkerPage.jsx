@@ -1,14 +1,14 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   FileText,
   Info,
   ShieldCheck,
   Upload,
-  X,
-  AlertTriangle
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/Button";
@@ -112,10 +112,10 @@ export function AddWorkerPage({
         return;
       }
       // Auto-set the document label to the file name if it's currently empty
-      setCurrentDoc(prev => ({ 
-        ...prev, 
-        file: file, 
-        name: prev.name || file.name.split('.')[0] 
+      setCurrentDoc(prev => ({
+        ...prev,
+        file: file,
+        name: prev.name || file.name.split('.')[0]
       }));
     }
   };
@@ -129,11 +129,11 @@ export function AddWorkerPage({
     .map(jd => {
       const currentCount = jd.workers?.length || 0;
       const requiredCount = jd.requiredWorkers || 0;
-      
+
       const isFull = currentCount >= requiredCount && requiredCount > 0;
       const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
       const isStatusClosed = jd.status?.toLowerCase() === "closed";
-      
+
       const isAssignedToCurrentWorker = isEditMode && (String(initialData?.jobDemandId?._id || initialData?.jobDemandId) === String(jd._id));
 
       let lockReason = "";
@@ -184,7 +184,7 @@ export function AddWorkerPage({
         return;
       }
     }
-    
+
     const sanitizedData = { ...formData };
     const idFields = ["employerId", "jobDemandId", "subAgentId"];
 
@@ -201,13 +201,13 @@ export function AddWorkerPage({
     <div className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
       <div className="flex items-center gap-4">
         {/* Change from onClick={onNavigate} to this: */}
-<button 
-  type="button" 
-  onClick={() => onNavigate('worker')} 
-  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
->
-  <ArrowLeft size={22} className="text-gray-600" />
-</button>
+        <button
+          type="button"
+          onClick={() => onNavigate('worker')}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft size={22} className="text-gray-600" />
+        </button>
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             {isEditMode ? "Edit Worker Profile" : "Register New Worker"}
@@ -245,13 +245,13 @@ export function AddWorkerPage({
               <Select
                 label="Employer"
                 value={formData.employerId || ""}
-                onChange={(e) => { 
-                    handleChange("employerId", e.target.value); 
-                    handleChange("jobDemandId", ""); 
+                onChange={(e) => {
+                  handleChange("employerId", e.target.value);
+                  handleChange("jobDemandId", "");
                 }}
                 options={[
-                    { value: "", label: "None / Select Employer" },
-                    ...employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))
+                  { value: "", label: "None / Select Employer" },
+                  ...employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))
                 ]}
               />
               <Select
@@ -267,11 +267,11 @@ export function AddWorkerPage({
                   handleChange("jobDemandId", e.target.value);
                 }}
                 options={[
-                    { value: "", label: "None / Select Job Demand" },
-                    ...filteredJobDemands.map(jd => ({ 
-                      value: jd._id || jd.id, 
-                      label: `${jd.jobTitle} ${jd.isLocked ? `(${jd.lockReason})` : `(${jd.currentCount}/${jd.requiredCount})`}` 
-                    }))
+                  { value: "", label: "None / Select Job Demand" },
+                  ...filteredJobDemands.map(jd => ({
+                    value: jd._id || jd.id,
+                    label: `${jd.jobTitle} ${jd.isLocked ? `(${jd.lockReason})` : `(${jd.currentCount}/${jd.requiredCount})`}`
+                  }))
                 ]}
               />
               <Select
@@ -279,8 +279,8 @@ export function AddWorkerPage({
                 value={formData.subAgentId || ""}
                 onChange={(e) => handleChange("subAgentId", e.target.value)}
                 options={[
-                    { value: "", label: "Direct (No Agent)" },
-                    ...subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))
+                  { value: "", label: "Direct (No Agent)" },
+                  ...subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))
                 ]}
               />
               <Select
@@ -288,9 +288,9 @@ export function AddWorkerPage({
                 value={formData.status}
                 onChange={(e) => handleChange("status", e.target.value)}
                 options={[
-                    { value: "pending", label: "Pending" }, 
-                    { value: "processing", label: "Processing" }, 
-                    { value: "active", label: "Active" }
+                  { value: "pending", label: "Pending" },
+                  { value: "processing", label: "Processing" },
+                  { value: "active", label: "Active" }
                 ]}
               />
             </CardContent>
@@ -336,7 +336,7 @@ export function AddWorkerPage({
                       onChange={(e) => setCurrentDoc({ ...currentDoc, name: e.target.value })}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <input
                       id="worker-file-input"
@@ -345,7 +345,7 @@ export function AddWorkerPage({
                       onChange={handleFileChange}
                     />
                     <p className="text-[10px] text-gray-400 pl-1 font-medium italic">Max file size: 5.00 MB</p>
-                    
+
                     {fileError && (
                       <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-100 rounded-lg text-red-600 text-xs font-bold animate-pulse">
                         <AlertTriangle size={14} />
@@ -369,8 +369,8 @@ export function AddWorkerPage({
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Currently Attached</h4>
                   {documents.length === 0 && (
                     <div className="text-center py-10 border border-dashed rounded-xl bg-gray-50">
-                       <FileText size={32} className="mx-auto text-gray-300 mb-2 opacity-50" />
-                       <p className="text-gray-400 text-sm italic">No documents attached yet.</p>
+                      <FileText size={32} className="mx-auto text-gray-300 mb-2 opacity-50" />
+                      <p className="text-gray-400 text-sm italic">No documents attached yet.</p>
                     </div>
                   )}
                   {documents.map((doc, i) => (

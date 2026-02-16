@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from '@/lib/api';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -10,8 +11,6 @@ import {
   ShieldCheck, Smartphone, User
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { toast, Toaster } from 'react-hot-toast';
-import { apiUrl } from '@/lib/api';
 
 // UI Components
 import { Button } from '../components/ui/Button';
@@ -48,7 +47,7 @@ const StyledInput = ({ label, icon: Icon, isPassword, ...props }) => {
 };
 
 export function LoginPage({ onLogin }) {
-  const [view, setView] = useState('login'); // 'login' | 'forgot' | 'reset'
+  const [view, setView] = useState('login');
   const [role, setRole] = useState('employee');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -87,33 +86,25 @@ export function LoginPage({ onLogin }) {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // FIXED: handleAction now properly prevents page refresh
   const handleAction = async (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
 
-    // Safety check: Don't run if already loading
     if (isLoading) return;
 
     setError('');
-    const toastId = toast.loading('Processing...');
     setIsLoading(true);
 
     const finalId = formatIdentifier(identifier);
 
     try {
       if (view === 'login') {
-        // Attempt login via the prop function
-        const data = await onLogin(finalId, password, role);
-        // Only show success if we actually got data back
-        if (data) {
-          toast.success(`Welcome back, ${data.user.fullName}!`, { id: toastId, icon: '👋' });
-        }
+        await onLogin(finalId, password, role);
+        // Success toast removed
       } else if (view === 'forgot') {
-  await axios.post(apiUrl('/api/auth/forgot-password'), { identifier: finalId });
-        toast.success('Verification code sent!', { id: toastId });
+        await axios.post(apiUrl('/api/auth/forgot-password'), { identifier: finalId });
         resetForm('reset');
         setResendTimer(60);
       } else if (view === 'reset') {
@@ -122,14 +113,11 @@ export function LoginPage({ onLogin }) {
           otp,
           newPassword
         });
-        toast.success('Password updated! Please login.', { id: toastId });
         resetForm('login');
       }
     } catch (err) {
-      // FIXED: Catching error here prevents the "bubble-up" crash that causes refresh
       const msg = err.response?.data?.msg || err.message || 'Something went wrong';
       setError(msg);
-      toast.error(msg, { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -141,20 +129,17 @@ export function LoginPage({ onLogin }) {
 
     setIsResending(true);
     const finalId = formatIdentifier(identifier);
-    const tid = toast.loading('Resending OTP...');
 
     try {
       const response = await axios.post(apiUrl('/api/auth/resend-otp'), {
         identifier: finalId
       });
       if (response.data.success) {
-        toast.success('New OTP sent!', { id: tid });
         setResendTimer(60);
         setError('');
       }
     } catch (err) {
       const msg = err.response?.data?.msg || 'Failed to resend';
-      toast.error(msg, { id: tid });
       setError(msg);
     } finally {
       setIsResending(false);
@@ -163,36 +148,36 @@ export function LoginPage({ onLogin }) {
 
   return (
     <div className={`min-h-screen flex items-center justify-center p-4 transition-all duration-700 ${isAdmin ? 'bg-slate-950' : 'bg-slate-50'}`}>
-      <Toaster position="top-center" reverseOrder={false} />
+      {/* Toaster removed from here */}
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className={`absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] opacity-20 transition-colors duration-1000 ${isAdmin ? 'bg-indigo-600' : 'bg-blue-300'}`} />
         <div className={`absolute -bottom-24 -right-24 w-96 h-96 rounded-full blur-[100px] opacity-20 transition-colors duration-1000 ${isAdmin ? 'bg-purple-600' : 'bg-indigo-200'}`} />
       </div>
 
-      <motion.div 
-        layout 
-        initial={{ opacity: 0, scale: 0.95 }} 
-        animate={{ opacity: 1, scale: 1 }} 
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-[420px] relative z-10"
       >
         <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/95 backdrop-blur-md">
           <CardHeader className="pt-10 pb-4 text-center relative">
             <AnimatePresence>
               {view !== 'login' && (
-                <motion.button 
+                <motion.button
                   type="button"
-                  initial={{ opacity: 0, x: -10 }} 
-                  animate={{ opacity: 1, x: 0 }} 
-                  exit={{ opacity: 0, x: -10 }} 
-                  onClick={() => resetForm('login')} 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  onClick={() => resetForm('login')}
                   className="absolute left-8 top-10 p-2 text-slate-400 hover:text-slate-800 transition-colors"
                 >
                   <ChevronLeft size={20} />
                 </motion.button>
               )}
             </AnimatePresence>
-            <motion.div 
+            <motion.div
               layout
               className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-inner transition-colors duration-500 ${isAdmin ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white'}`}
             >
@@ -206,10 +191,10 @@ export function LoginPage({ onLogin }) {
           <CardContent className="px-8 pb-10">
             <AnimatePresence mode="wait">
               {error && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  exit={{ opacity: 0, scale: 0.95 }} 
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   className="mb-6 p-3 bg-red-50 text-red-700 text-xs font-bold rounded-xl flex items-center gap-2 border border-red-100"
                 >
                   <AlertCircle size={14} /> {error}
@@ -264,10 +249,9 @@ export function LoginPage({ onLogin }) {
                 </motion.div>
               </AnimatePresence>
 
-              {/* Using type="submit" but handled by e.preventDefault() in handleAction */}
-              <Button 
-                type="submit" 
-                disabled={isLoading} 
+              <Button
+                type="submit"
+                disabled={isLoading}
                 className={`w-full h-12 rounded-xl text-white font-bold transition-all shadow-lg ${isAdmin ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}
               >
                 {isLoading ? <Loader2 className="animate-spin mx-auto" size={20} /> : (
